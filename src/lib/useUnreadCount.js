@@ -1,16 +1,15 @@
 ﻿import { useState, useEffect } from "react";
-import { subscribeNotifications } from "../services/notifications";
+import { subscribeNotifications, isNotificationUnread } from "../services/notifications";
 
 /**
- * Shared hook — any component can call this to get
- * the real-time unread count from Firestore.
+ * Real-time unread notification count (Firestore + synced backend state).
  */
 export function useUnreadCount() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const unsub = subscribeNotifications(items => {
-      setCount(items.filter(n => !n.read).length);
+    const unsub = subscribeNotifications((items) => {
+      setCount(items.filter(isNotificationUnread).length);
     });
     return unsub;
   }, []);

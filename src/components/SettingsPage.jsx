@@ -1,14 +1,10 @@
 import { useAuthContext } from "../lib/AuthContext";
 
-<<<<<<< HEAD
 const ROLE_LABEL = {
   admin:      "مدير النظام",
   support:    "خدمة عملاء",
   accountant: "محاسب",
 };
-=======
-const ROLE_LABEL = { admin: "مدير النظام", support: "خدمة عملاء", accountant: "محاسب" };
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
 
 const LockIcon = () => (
   <svg className="w-4 h-4 text-[#c9a84c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -26,19 +22,11 @@ const TrendIcon = () => (
 export default function SettingsPage() {
   const { user } = useAuthContext();
 
-<<<<<<< HEAD
   const firstName = user?.firstName || (user?.email?.split('@')[0] ?? "");
   const lastName  = user?.lastName  ?? "";
   const fullName  = [firstName, lastName].filter(Boolean).join(" ") || user?.displayName || "مستخدم";
   const email     = user?.email ?? "";
   const avatar    = user?.imageUrl ?? user?.photoURL;
-=======
-  const firstName = user?.firstName ?? "";
-  const lastName  = user?.lastName  ?? "";
-  const fullName  = [firstName, lastName].filter(Boolean).join(" ") || "مستخدم";
-  const email     = user?.email ?? "";
-  const avatar    = user?.imageUrl;
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
   const role      = user?.role ?? "support";
   const roleLabel = ROLE_LABEL[role] ?? role;
 

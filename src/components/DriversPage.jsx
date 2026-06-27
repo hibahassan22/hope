@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "../lib/toast";
-<<<<<<< HEAD
 import AddPaymentModal from "./AddPaymentModal";
 import TripDetailModal from "./TripDetailModal";
-=======
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
 
 const Portal = ({ children }) => {
   if (typeof document === "undefined") return null;
@@ -654,17 +651,11 @@ const tripStatusInfo = (s) => TRIP_STATUS[s] || { label: s||"—", cls:"bg-gray-
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("ar-EG") : "—";
 
 const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
-<<<<<<< HEAD
   const [trips, setTrips]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage]       = useState(1);
   const [paymentModal, setPaymentModal]   = useState({ open: false, tripId: null });
   const [detailModal,  setDetailModal]    = useState({ open: false, tripId: null });
-=======
-  const [trips, setTrips]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [page, setPage]         = useState(1);
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
   const PER_PAGE = 5;
 
   useEffect(() => {
@@ -707,14 +698,9 @@ const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
         paged.map(trip => {
           const st = tripStatusInfo(trip.status);
           const isSubscription = trip.type === "subscription" || trip.subscription_type;
-<<<<<<< HEAD
           const tripId = trip.trip_id ?? trip.id;  // driver-trips API returns trip_id
           return (
             <div key={tripId ?? trip.id} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-=======
-          return (
-            <div key={trip.id} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
               <div className="flex flex-col md:flex-row">
                 {/* Trip info */}
                 <div className="flex-1 p-4 space-y-2.5">
@@ -729,11 +715,7 @@ const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
                     {isSubscription && <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full">اشتراك</span>}
                     {trip.is_registered === false && <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] px-2 py-0.5 rounded-full">غير مسجل</span>}
                     <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${st.cls}`}>{st.label}</span>
-<<<<<<< HEAD
                     <span className="font-bold text-gray-800 text-sm">#{tripId}</span>
-=======
-                    <span className="font-bold text-gray-800 text-sm">#{trip.id}</span>
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
                     <span className="text-lg font-bold text-amber-600">{trip.price||trip.total_price||"—"} ر.س</span>
                   </div>
 
@@ -765,13 +747,9 @@ const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
 
                 {/* Actions column */}
                 <div className="border-t md:border-t-0 md:border-r border-gray-100 bg-gray-50/60 px-3 py-3 flex md:flex-col gap-2 justify-center items-stretch md:w-32 shrink-0">
-<<<<<<< HEAD
                   <button
                     onClick={() => setPaymentModal({ open: true, tripId })}
                     className="flex items-center justify-center gap-1 bg-[#474747] text-white text-xs py-1.5 px-2 rounded-lg hover:bg-black transition-colors">
-=======
-                  <button className="flex items-center justify-center gap-1 bg-[#474747] text-white text-xs py-1.5 px-2 rounded-lg hover:bg-black transition-colors">
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                     إضافة دفعة
                   </button>
@@ -779,14 +757,10 @@ const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     تغيير الحالة
                   </button>
-<<<<<<< HEAD
                   <button
                     onClick={() => tripId && setDetailModal({ open: true, tripId })}
                     disabled={!tripId}
                     className="flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-=======
-                  <button className="flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors">
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                     عرض التفاصيل
                   </button>
@@ -815,7 +789,6 @@ const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
           </button>
         </div>
       )}
-<<<<<<< HEAD
 
       <AddPaymentModal
         isOpen={paymentModal.open}
@@ -836,8 +809,6 @@ const DriverTripsTab = ({ driverId, tripsCount, totalDues }) => {
         onClose={() => setDetailModal({ open: false, tripId: null })}
         tripId={detailModal.tripId}
       />
-=======
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
     </div>
   );
 };

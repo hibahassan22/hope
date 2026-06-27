@@ -13,188 +13,18 @@ import {
     ChevronLeft,
     ChevronRight,
     X,
-<<<<<<< HEAD
-=======
-    Upload,
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
     Clock,
     CheckCircle2,
     XCircle,
     PauseCircle
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-<<<<<<< HEAD
 import AddPaymentModal from './AddPaymentModal';
 import EditTripModal from './EditTripModal';
-=======
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
 
 const API_BASE = "/api";
 
 // ==========================================
-<<<<<<< HEAD
-=======
-// 1. مودال إضافة دفعة جديدة
-// ==========================================
-const AddPaymentModal = ({ isOpen, onClose, tripId }) => {
-    if (!isOpen) return null;
-
-    const [formData, setFormData] = useState({
-        amount_paid: '',
-        transfer_method: 'تحويل بنكي',
-        account_number: '',
-        recipient_account: '',
-        commission_transfer_date: '',
-        payment_note: '',
-        transfer_image: null,
-    });
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState(null);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
-        setError(null);
-        try {
-            const fd = new FormData();
-            fd.append('amount_paid', formData.amount_paid);
-            fd.append('transfer_method', formData.transfer_method);
-            fd.append('account_number', formData.account_number);
-            fd.append('recipient_account', formData.recipient_account);
-            fd.append('commission_transfer_date', formData.commission_transfer_date);
-            fd.append('payment_note', formData.payment_note);
-            if (formData.transfer_image) fd.append('transfer_image', formData.transfer_image);
-
-            const res = await fetch(`${API_BASE}/trips/${tripId}/add-payment`, {
-                method: 'POST',
-                body: fd,
-            });
-            const json = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(json?.message || `خطأ ${res.status}`);
-            onClose();
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans" dir="rtl">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="flex items-center justify-between border-b border-gray-100 p-4">
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                    <h3 className="text-base font-semibold text-gray-700">إضافة دفعة جديدة</h3>
-                    <div className="w-5"></div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto space-y-4">
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-3 py-2 text-right">
-                            {error}
-                        </div>
-                    )}
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">المبلغ المدفوع *</label>
-                        <input
-                            type="number"
-                            placeholder="ادخل المبلغ"
-                            value={formData.amount_paid}
-                            onChange={(e) => setFormData({ ...formData, amount_paid: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-amber-500 focus:outline-none"
-                            required
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">طريقة التحويل</label>
-                        <div className="relative">
-                            <select
-                                value={formData.transfer_method}
-                                onChange={(e) => setFormData({ ...formData, transfer_method: e.target.value })}
-                                className="w-full appearance-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-600 focus:border-amber-500 focus:outline-none bg-white"
-                            >
-                                <option value="تحويل بنكي">تحويل بنكي</option>
-                                <option value="كاش">كاش</option>
-                                <option value="محفظة إلكترونية">محفظة إلكترونية</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-                                <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-gray-500">رقم الحساب</label>
-                            <input
-                                type="text"
-                                placeholder="123456"
-                                value={formData.account_number}
-                                onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
-                                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-amber-500 focus:outline-none"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-gray-500">حساب المستلم</label>
-                            <input
-                                type="text"
-                                placeholder="78910111"
-                                value={formData.recipient_account}
-                                onChange={(e) => setFormData({ ...formData, recipient_account: e.target.value })}
-                                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-amber-500 focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">تاريخ التحويل</label>
-                        <input
-                            type="date"
-                            value={formData.commission_transfer_date}
-                            onChange={(e) => setFormData({ ...formData, commission_transfer_date: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">صورة التحويل</label>
-                        <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
-                            <Upload className="w-4 h-4 text-gray-400" />
-                            <span>{formData.transfer_image ? formData.transfer_image.name : "اختر الملف"}</span>
-                            <input type="file" className="hidden" accept="image/*"
-                                onChange={(e) => setFormData({ ...formData, transfer_image: e.target.files[0] })} />
-                        </label>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">ملاحظة</label>
-                        <textarea
-                            rows="2"
-                            placeholder="أضف ملاحظة (اختياري)"
-                            value={formData.payment_note}
-                            onChange={(e) => setFormData({ ...formData, payment_note: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-amber-500 focus:outline-none resize-none"
-                        />
-                    </div>
-
-                    <div className="pt-2">
-                        <button type="submit" disabled={submitting}
-                            className="w-full rounded-xl bg-[#4a4746] py-3 text-sm font-medium text-white hover:bg-black transition-colors shadow-sm disabled:opacity-60">
-                            {submitting ? "جاري الحفظ..." : "حفظ"}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-// ==========================================
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
 // 2. مودال تغيير حالة الرحلة 
 // ==========================================
 const ChangeStatusModal = ({ isOpen, onClose, onStatusChange }) => {
@@ -279,135 +109,7 @@ const ChangeStatusModal = ({ isOpen, onClose, onStatusChange }) => {
 };
 
 // ==========================================
-<<<<<<< HEAD
 // 3. المكون الأساسي لصفحة سجل الرحلات
-=======
-// 3. مودال تعديل بيانات الرحلة
-// ==========================================
-const EditTripModal = ({ isOpen, onClose, tripData, onSave }) => {
-    if (!isOpen || !tripData) return null;
-
-    const [formData, setFormData] = React.useState({
-        price: tripData.price || '',
-        from: tripData.from || '',
-        to: tripData.to || '',
-        city: tripData.city || '',
-        driver: tripData.driver || '',
-        customerName: tripData.customerName || '',
-        phone: tripData.phone || ''
-    });
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave({ ...tripData, ...formData });
-        onClose();
-    };
-
-    return (
-        <div className="fixed rounded-xl inset-0 z-50 flex items-center justify-center  backdrop-blur-sm p-4 font-sans" dir="rtl">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex items-center justify-between border-b border-gray-100 p-4">
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                    <h3 className="text-base font-semibold text-gray-800">تعديل بيانات الرحلة {tripData.id}</h3>
-                    <div className="w-5"></div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto space-y-4 text-right">
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-gray-500">السعر</label>
-                            <input
-                                type="text"
-                                value={formData.price}
-                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                                required
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-gray-500">المدينة</label>
-                            <input
-                                type="text"
-                                value={formData.city}
-                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">نقطة الانطلاق</label>
-                        <input
-                            type="text"
-                            value={formData.from}
-                            onChange={(e) => setFormData({ ...formData, from: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                            required
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">نقطة الوصول</label>
-                        <input
-                            type="text"
-                            value={formData.to}
-                            onChange={(e) => setFormData({ ...formData, to: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                            required
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">اسم السائق</label>
-                        <input
-                            type="text"
-                            value={formData.driver}
-                            onChange={(e) => setFormData({ ...formData, driver: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                            required
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">اسم العميل</label>
-                        <input
-                            type="text"
-                            value={formData.customerName}
-                            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                            required
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-gray-500">رقم الهاتف</label>
-                        <input
-                            type="text"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none"
-                            dir="ltr"
-                            required
-                        />
-                    </div>
-
-                    <div className="pt-2">
-                        <button type="submit" className="w-full rounded-xl bg-[#4a4746] py-3 text-sm font-semibold text-white hover:bg-black transition-colors shadow-sm">
-                            حفظ التعديلات
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-// ==========================================
-// 4. المكون الأساسي لصفحة سجل الرحلات
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
 // ==========================================
 const TripsLog = () => {
     const location = useLocation();
@@ -444,7 +146,6 @@ const TripsLog = () => {
         fetchTrips();
     }, [location.key]);
 
-<<<<<<< HEAD
     // Refresh when a trip is assigned from CreateTripPage
     useEffect(() => {
         const handler = () => fetchTrips();
@@ -452,31 +153,11 @@ const TripsLog = () => {
         return () => window.removeEventListener('trips-list-refresh', handler);
     }, []);
 
-=======
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
     const handleEditClick = (trip) => {
         setSelectedTrip(trip);
         setIsEditModalOpen(true);
     };
 
-<<<<<<< HEAD
-=======
-    const handleSaveTripDetails = async (updatedTrip) => {
-        // Update local state immediately (optimistic)
-        setTrips(prevTrips => prevTrips.map(t => t.id === updatedTrip.id ? updatedTrip : t));
-        // Persist to API
-        try {
-            await fetch(`${API_BASE}/trips/${updatedTrip.id}/update`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updatedTrip),
-            });
-        } catch {
-            // silently fail — local state already updated
-        }
-    };
-
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
     const handlePrint = () => {
         const printContent = trips.map(trip => `
             <tr>
@@ -726,7 +407,6 @@ const TripsLog = () => {
                 isOpen={isPaymentModalOpen}
                 onClose={() => { setIsPaymentModalOpen(false); setSelectedTripId(null); }}
                 tripId={selectedTripId}
-<<<<<<< HEAD
                 onSuccess={(data) => {
                     setTrips(prev => prev.map(t =>
                         t.id === selectedTripId
@@ -734,8 +414,6 @@ const TripsLog = () => {
                             : t
                     ));
                 }}
-=======
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
             />
 
             <ChangeStatusModal
@@ -756,20 +434,11 @@ const TripsLog = () => {
 
             <EditTripModal
                 isOpen={isEditModalOpen}
-<<<<<<< HEAD
                 trip={selectedTrip}
                 onClose={() => { setIsEditModalOpen(false); setSelectedTrip(null); }}
                 onSuccess={(updated) => {
                     setTrips(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
                 }}
-=======
-                tripData={selectedTrip}
-                onClose={() => {
-                    setIsEditModalOpen(false);
-                    setSelectedTrip(null);
-                }}
-                onSave={handleSaveTripDetails}
->>>>>>> bfa305e06ca566f2c1a1d06441b1846613d7cde8
             />
         </div>
     );

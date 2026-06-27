@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useToast } from "../lib/toast";
+import { useAuthContext } from "../context/AuthContext.jsx";
 
 const API_BASE = "https://drivo1.elmoroj.com";
-const SALES_ID = "1HDYgTwX7UQ64wFENRSMMY5dND33"; // replace with authenticated sales ID if available
 
 // ======= Mock Data =======
 const initialClients = [
@@ -361,6 +361,7 @@ export default function ClientsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: "" });
   const [deleteLoading, setDeleteLoading] = useState(false);
   const toast = useToast();
+  const { user } = useAuthContext();
 
   const mapApiNote = (note) => ({
     id: note.id?.toString() || `${Date.now()}-${Math.random()}`,
@@ -582,7 +583,7 @@ export default function ClientsPage() {
         },
         body: JSON.stringify({
           customer_id: customerId,
-          sales_id: SALES_ID,
+          sales_id: user?.uid ?? "",
           message: noteMessage,
           type: "ملاحظة",
           note_date: date,

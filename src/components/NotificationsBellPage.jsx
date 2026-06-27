@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { markAllAsRead, markAsRead, isNotificationUnread } from "../services/notifications.js";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 
@@ -63,14 +64,25 @@ export default function NotificationsPage() {
 
   const markAllRead = async () => {
     setMarkingAll(true);
+    setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
     try {
-      await fetch(`${BASE}/drivo/admin/notifications/mark-read`, {
-        method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" }
-      });
-      fetchNotifications();
-    } catch(e) { console.error(e); }
+      await markAllAsRead();
+    } catch (e) {
+      console.error(e);
+    }
     setMarkingAll(false);
+  };
+
+  const markOneRead = async (n) => {
+    if (n.status === "read") return;
+    setNotifications((prev) =>
+      prev.map((x) => (x.id === n.id ? { ...x, status: "read" } : x))
+    );
+    try {
+      await markAsRead(n.id);
+    } catch {
+      /* API-only notifications may not exist in Firestore */
+    }
   };
 
   const displayed = filter === "unread"
@@ -137,8 +149,8 @@ export default function NotificationsPage() {
             const icon = getIcon(n.type);
             const isNew = n.status !== "read";
             return (
-              <div key={n.id}
-                className={`bg-white rounded-2xl border px-4 py-4 flex items-start gap-3 hover:shadow-md transition-shadow ${isNew ? "border-[#c9a84c]/30 bg-amber-50/20" : "border-gray-100"}`}>
+              <div key={n.id} onClick={() => markOneRead(n)}
+                className={`bg-white rounded-2xl border px-4 py-4 flex items-start gap-3 hover:shadow-md transition-shadow cursor-pointer ${isNew ? "border-[#c9a84c]/30 bg-amber-50/20" : "border-gray-100"}`}>
                 <DotsIcon/>
                 {/* Content */}
                 <div className="flex-1 text-right">

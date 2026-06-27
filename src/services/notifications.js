@@ -4,6 +4,23 @@ import { db } from "../lib/firebase";
 const COL = "notifications";
 const API = "https://drivo1.elmoroj.com/api";
 
+/** Unread if `read` is false/missing or legacy API `status` is not read. */
+export function isNotificationUnread(n) {
+  if (!n) return false;
+  if (n.read === true) return false;
+  if (n.read === false) return true;
+  if (n.status === "read" || n.status === "مقروء") return false;
+  return true;
+}
+
+async function markBackendAllRead() {
+  const res = await fetch(`${API}/drivo/admin/notifications/mark-read`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 // ── Auto-create collection on first load ───────────────────────
 // Firestore creates the collection automatically on first addDoc.
 // This function is called once on app start to ensure the collection exists
@@ -70,17 +87,28 @@ export async function markAsRead(docId) {
   await updateDoc(doc(db, COL, docId), { read: true });
 }
 
-// ── Mark ALL unread as read ────────────────────────────────────
+// ── Mark ALL unread as read (Firestore + backend API) ──────────
 export async function markAllAsRead() {
-  const snap = await getDocs(query(collection(db, COL), where("read", "==", false)));
-  await Promise.all(snap.docs.map(d => updateDoc(d.ref, { read: true })));
+  try {
+    await markBackendAllRead();
+  } catch (e) {
+    console.warn("[Notifications] API mark-read:", e.message);
+  }
+
+  const snap = await getDocs(collection(db, COL));
+  const updates = snap.docs
+    .filter((d) => isNotificationUnread(d.data()))
+    .map((d) => updateDoc(d.ref, { read: true }));
+  await Promise.all(updates);
 }
 
 // ── Real-time listener ─────────────────────────────────────────
 export function subscribeNotifications(callback) {
   const q = query(collection(db, COL), orderBy("createdAt", "desc"));
-  return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (err) => console.error("[Notifications] listener:", err.message)
   );
 }
 

@@ -1,13 +1,13 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuthContext } from "../lib/AuthContext";
-import { NAV_ROLE_MAP } from "../lib/roles";
+import { useAuthContext } from "../context/AuthContext.jsx";
+import { NAV_ROLE_MAP, ROLE_LABELS } from "../lib/roles.js";
 import { useUnreadCount } from "../lib/useUnreadCount";
-import { subscribeNotifications, markAllAsRead, markAsRead, initNotificationsCollection } from "../services/notifications";
+import { useChatUnreadCount, isChatDriverUnread, markChatDriverRead, syncChatUnreadFromDrivers } from "../lib/useChatUnread";
+import { subscribeNotifications, markAllAsRead, markAsRead, initNotificationsCollection, isNotificationUnread } from "../services/notifications";
 import PageTransition from "./PageTransition";
 
 const BASE = "https://drivo1.elmoroj.com/api";
-const ROLE_LABEL = { admin:"مدير النظام", support:"خدمة عملاء", accountant:"محاسب" };
 const fmtDate = (ts) => { if (!ts) return ""; const d = ts?.toDate ? ts.toDate() : new Date(ts); const diff = Math.floor((Date.now()-d)/1000); if (diff<60) return "منذ لحظات"; if (diff<3600) return "منذ "+Math.floor(diff/60)+"د"; if (diff<86400) return "منذ "+Math.floor(diff/3600)+"س"; return d.toLocaleDateString("ar-EG"); };
 
 const SearchIcon = () => (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>);
@@ -36,6 +36,7 @@ const ALL_NAV = [
 function NotificationsDropdown({ onClose }) {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [markingAll, setMarkingAll] = useState(false);
   const ref = useRef(null);
   useEffect(() => { const u = subscribeNotifications(setItems); return u; }, []);
   useEffect(() => {
@@ -43,11 +44,34 @@ function NotificationsDropdown({ onClose }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [onClose]);
-  const displayed = filter==="unread" ? items.filter(n=>!n.read) : filter==="read" ? items.filter(n=>n.read) : items.slice(0,12);
+
+  const handleMarkAllAsRead = async () => {
+    setMarkingAll(true);
+    setItems((prev) => prev.map((n) => ({ ...n, read: true, status: "read" })));
+    try {
+      await markAllAsRead();
+    } catch (e) {
+      console.error("[Notifications] mark all:", e);
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  const handleMarkOne = async (n) => {
+    if (!isNotificationUnread(n)) return;
+    setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true, status: "read" } : x)));
+    try {
+      await markAsRead(n.id);
+    } catch (e) {
+      console.error("[Notifications] mark one:", e);
+    }
+  };
+
+  const displayed = filter==="unread" ? items.filter(isNotificationUnread) : filter==="read" ? items.filter(n=>!isNotificationUnread(n)) : items.slice(0,12);
   return (
     <div ref={ref} className="absolute top-12 left-0 z-50 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden" dir="rtl" style={{animation:"dropDown 0.2s ease"}}>
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-l from-[#9C6402] to-[#E6C76A]">
-        <button onClick={markAllAsRead} className="text-[10px] text-white/80 hover:text-white border border-white/30 px-2 py-1 rounded-lg">تحديد الكل مقروء</button>
+        <button type="button" onClick={handleMarkAllAsRead} disabled={markingAll} className="text-[10px] text-white/80 hover:text-white border border-white/30 px-2 py-1 rounded-lg disabled:opacity-60">{markingAll ? "..." : "تحديد الكل مقروء"}</button>
         <div className="flex items-center gap-2"><h3 className="text-white font-bold text-sm">الاشعارات</h3><BellIcon /></div>
       </div>
       <div className="flex border-b border-gray-100 bg-gray-50">
@@ -59,8 +83,8 @@ function NotificationsDropdown({ onClose }) {
         {displayed.length===0 ? (
           <div className="py-10 text-center text-gray-400 text-xs"><div className="text-3xl mb-2">🔔</div>لا توجد اشعارات</div>
         ) : displayed.map(n => (
-          <div key={n.id} onClick={() => !n.read && markAsRead(n.id)}
-            className={"flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 " + (!n.read ? "bg-amber-50/40" : "")}>
+          <div key={n.id} onClick={() => handleMarkOne(n)}
+            className={"flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 " + (isNotificationUnread(n) ? "bg-amber-50/40" : "")}>
             <div className={"w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm " + (n.type==="driver" ? "bg-gradient-to-br from-[#9C6402] to-[#E6C76A]" : "bg-blue-100")}>
               {n.type==="driver" ? "🚗" : "⚙"}
             </div>
@@ -71,7 +95,7 @@ function NotificationsDropdown({ onClose }) {
               </div>
               <p className="text-[11px] text-gray-500 truncate mt-0.5">{n.body}</p>
             </div>
-            {!n.read && <span className="w-2 h-2 bg-[#c9a84c] rounded-full shrink-0 mt-1.5" />}
+            {!isNotificationUnread(n) ? null : <span className="w-2 h-2 bg-[#c9a84c] rounded-full shrink-0 mt-1.5" />}
           </div>
         ))}
       </div>
@@ -96,9 +120,25 @@ function ChatModal({ isOpen, onClose, currentUser }) {
 
   useEffect(() => {
     if (!isOpen) return;
+    try {
+      const saved = localStorage.getItem("drivo_chat_messages");
+      if (saved) setMessages(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !Object.keys(messages).length) return;
+    try {
+      localStorage.setItem("drivo_chat_messages", JSON.stringify(messages));
+    } catch { /* ignore */ }
+  }, [messages, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     setLoading(true);
     fetch(BASE + "/drivers").then(r => r.json()).then(d => {
       const list = Array.isArray(d) ? d : (d.data ?? d.drivers ?? []);
+      syncChatUnreadFromDrivers(list);
       setDrivers(list.slice(0, 30));
       setSelected(s => s ?? list[0] ?? null);
       setLoading(false);
@@ -115,6 +155,7 @@ function ChatModal({ isOpen, onClose, currentUser }) {
   };
 
   const selectDriver = (d) => {
+    markChatDriverRead(d.id);
     if (d.id === selected?.id) return;
     setPrevSelected(selected);
     setSliding(true);
@@ -154,12 +195,16 @@ function ChatModal({ isOpen, onClose, currentUser }) {
               <div className="flex justify-center items-center h-16"><div className="w-6 h-6 border-2 border-[#c9a84c] border-t-transparent rounded-full animate-spin" /></div>
             ) : filtered.map(d => {
               const isActive = selected?.id === d.id;
+              const hasUnread = isChatDriverUnread(d.id);
               return (
                 <button key={d.id} onClick={() => selectDriver(d)}
                   className={"w-full flex items-center gap-3 px-4 py-3 border-b border-amber-50 transition-all text-right " + (isActive ? "bg-gradient-to-l from-[#c9a84c]/10 to-transparent border-r-[3px] border-r-[#c9a84c]" : "hover:bg-amber-50/50")}>
                   <div className="relative shrink-0">
                     <div className={"w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold text-sm " + (isActive ? "bg-gradient-to-br from-[#9C6402] to-[#E6C76A]" : "bg-gradient-to-br from-gray-300 to-gray-400")}>{dInit(d)}</div>
                     <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-white rounded-full" />
+                    {hasUnread && (
+                      <span className="absolute -top-0.5 -left-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">1</span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={"text-xs truncate " + (isActive ? "font-bold text-[#9C6402]" : "font-medium text-gray-600")}>{dName(d)}</p>
@@ -236,22 +281,23 @@ function ChatModal({ isOpen, onClose, currentUser }) {
 export default function Layout({ children }) {
   const navigate    = useNavigate();
   const location    = useLocation();
-  const { user, signOut } = useAuthContext();
+  const { user, signOut, role } = useAuthContext();
   const [chatOpen,  setChatOpen]  = useState(false);
   const [bellOpen,  setBellOpen]  = useState(false);
   const unreadCount = useUnreadCount();
+  const chatUnreadCount = useChatUnreadCount();
 
   useEffect(() => { initNotificationsCollection(); }, []);
 
-  const role      = user?.role ?? "admin";
-  const firstName = user?.firstName ?? "";
+  const navRole = role ?? user?.role ?? "admin";
+  const firstName = user?.firstName ?? user?.fullName?.split(" ")[0] ?? "";
   const lastName  = user?.lastName  ?? "";
   const email     = user?.email ?? "";
   const avatar    = user?.imageUrl;
 
-  const navItems = ALL_NAV.filter(item => {
+  const navItems = ALL_NAV.filter((item) => {
     const allowed = NAV_ROLE_MAP[item.route];
-    return !allowed || allowed.includes(role);
+    return !allowed || allowed.includes(navRole);
   });
 
   return (
@@ -311,11 +357,11 @@ export default function Layout({ children }) {
               <p className="text-white text-xs font-semibold truncate">{firstName} {lastName}</p>
               <p className="text-gray-500 text-[10px] truncate">{email}</p>
               <span className="inline-block mt-0.5 text-[9px] bg-[#c9a84c]/15 text-[#c9a84c] px-2 py-0.5 rounded-full border border-[#c9a84c]/20">
-                {ROLE_LABEL[role] ?? role}
+                {ROLE_LABELS[navRole] ?? navRole}
               </span>
             </div>
           </div>
-          <button onClick={() => signOut().then(() => navigate("/sign-in"))}
+          <button onClick={() => signOut().then(() => navigate("/login"))}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl text-xs font-medium transition-all">
             <LogoutIcon />
             <span>تسجيل الخروج</span>
@@ -340,7 +386,11 @@ export default function Layout({ children }) {
             <button onClick={() => setChatOpen(true)}
               className="relative p-2.5 rounded-xl hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-800">
               <ChatIcon />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#c9a84c] rounded-full border border-white" />
+              {chatUnreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-[#c9a84c] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border border-white">
+                  {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                </span>
+              )}
             </button>
 
             {/* Bell + dropdown */}
