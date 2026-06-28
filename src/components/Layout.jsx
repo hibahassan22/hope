@@ -6,6 +6,7 @@ import { useUnreadCount } from "../lib/useUnreadCount";
 import { useChatUnreadCount, isChatDriverUnread, markChatDriverRead, syncChatUnreadFromDrivers } from "../lib/useChatUnread";
 import { subscribeNotifications, markAllAsRead, markAsRead, initNotificationsCollection, isNotificationUnread } from "../services/notifications";
 import PageTransition from "./PageTransition";
+import AppModal from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 const fmtDate = (ts) => { if (!ts) return ""; const d = ts?.toDate ? ts.toDate() : new Date(ts); const diff = Math.floor((Date.now()-d)/1000); if (diff<60) return "منذ لحظات"; if (diff<3600) return "منذ "+Math.floor(diff/60)+"د"; if (diff<86400) return "منذ "+Math.floor(diff/3600)+"س"; return d.toLocaleDateString("ar-EG"); };
@@ -170,12 +171,9 @@ function ChatModal({ isOpen, onClose, currentUser }) {
   const msgs = selected ? (messages[selected.id] ?? []) : [];
   const filtered = drivers.filter(d => dName(d).includes(search));
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{animation:"fadeIn 0.2s ease"}}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-3xl h-[600px] bg-white rounded-3xl shadow-2xl overflow-hidden flex" dir="rtl" style={{animation:"scaleIn 0.25s ease"}}>
+    <AppModal isOpen={isOpen} onClose={onClose} title="المحادثات" size="xl">
+      <div className="relative w-full h-[520px] bg-white rounded-2xl overflow-hidden flex -mx-1" dir="rtl">
 
         <div className="w-72 flex flex-col border-l border-amber-100 shrink-0 bg-[#faf7f0]">
           <div className="px-4 py-4 bg-gradient-to-b from-[#9C6402] to-[#b8943f] rounded-tr-3xl">
@@ -267,14 +265,12 @@ function ChatModal({ isOpen, onClose, currentUser }) {
       </div>
       <style>{`
         @keyframes dropDown   { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
-        @keyframes scaleIn    { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
         @keyframes slideInChat{ from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
         @keyframes pageEnter  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         .chat-bubble-me   { animation: slideInChat 0.2s ease }
         .chat-bubble-other{ animation: slideInChat 0.2s ease }
       `}</style>
-    </div>
+    </AppModal>
   );
 }
 

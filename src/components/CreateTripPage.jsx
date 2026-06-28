@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import EditTripModal from "./EditTripModal";
-import { useToast } from "../lib/toast";
+import AssignTripModal from "./AssignTripModal";
+import TripChatModal from "./TripChatModal";
 
 const BASE_URL = "https://drivo1.elmoroj.com/api";
 const API_URL = `${BASE_URL}/trip-without-drivers`;
@@ -59,195 +60,11 @@ function useOfferedTrips() {
   return { trips, setTrips, loading, error, retry: load };
 }
 
-// Assign Driver Modal
-const AssignTripModal = ({ isOpen, onClose, tripId, onSuccess }) => {
-  const toast = useToast();
-  const [loading, setLoading]       = useState(false);
-  const [drivers, setDrivers]       = useState([]);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [form, setForm] = useState({
-    driver_id: '', our_commission: '', total_price: '', paid_amount: '',
-    from_account: '', to_account: '', transfer_method: 'البنك',
-    notes: '', payer_type: '', transfer_image: null,
-  });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setShowConfirm(false);
-    setForm({ driver_id: '', our_commission: '', total_price: '', paid_amount: '',
-      from_account: '', to_account: '', transfer_method: 'البنك',
-      notes: '', payer_type: '', transfer_image: null });
-    fetch(`${BASE_URL}/drivers`, { headers: { Accept: 'application/json' } })
-      .then(r => r.json())
-      .then(d => setDrivers(Array.isArray(d) ? d : (d.data ?? [])))
-      .catch(() => {});
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
-
-  const handleSubmit = async () => {
-    if (!form.driver_id) { toast.error('يرجى اختيار السائق'); return; }
-    setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append('driver_id',       form.driver_id);
-      fd.append('our_commission',  form.our_commission);
-      fd.append('total_price',     form.total_price);
-      fd.append('paid_amount',     form.paid_amount);
-      fd.append('from_account',    form.from_account);
-      fd.append('to_account',      form.to_account);
-      fd.append('transfer_method', form.transfer_method);
-      fd.append('notes',           form.notes);
-      fd.append('payer_type',      form.payer_type);
-      if (form.transfer_image) fd.append('transfer_image', form.transfer_image);
-
-      const res = await fetch(`${BASE_URL}/trips/${tripId}/assign-driver`, {
-        method: 'POST', body: fd,
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.message || `خطأ ${res.status}`);
-      toast.success(json.message || 'تم إسناد الرحلة بنجاح');
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      toast.error(err.message || 'حدث خطأ');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const inputCls = 'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none bg-white text-right';
-
-  if (showConfirm) return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" dir="rtl">
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-8 text-center space-y-6">
-        <h2 className="text-2xl font-bold text-[#c9a84c]">تأكيد</h2>
-        <p className="text-base text-gray-700">هل تم الاتفاق مع سائق لهذه الرحلة ؟</p>
-        <div className="flex gap-3">
-          <button onClick={handleSubmit} disabled={loading}
-            className="flex-1 py-3 rounded-xl bg-[#4a4644] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-60">
-            {loading ? 'جاري الإسناد...' : 'نعم'}
-          </button>
-          <button onClick={() => setShowConfirm(false)}
-            className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">إلغاء</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" dir="rtl">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-          <h3 className="text-base font-bold text-gray-800">إسناد رحلة جديدة</h3>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/40">
-          {/* معلومات أساسية */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3 shadow-sm">
-            <h4 className="text-sm font-bold text-[#c9a84c] text-right">$ معلومات اساسية</h4>
-            <div className="space-y-1.5">
-              <label className="text-xs text-gray-500 block text-right">اختر السائق *</label>
-              <select value={form.driver_id} onChange={set('driver_id')} className={inputCls}>
-                <option value="">اختر السائق...</option>
-                {drivers.map(d => (
-                  <option key={d.id} value={d.id}>
-                    {[d.name, d.last_name].filter(Boolean).join(' ')} — {d.phone}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-gray-500 block text-right">نوع الدافع</label>
-              <select value={form.payer_type} onChange={set('payer_type')} className={inputCls}>
-                <option value="">اختر...</option>
-                <option value="driver">السائق</option>
-                <option value="company">الشركة</option>
-                <option value="client">العميل</option>
-              </select>
-            </div>
-          </div>
-
-          {/* التفاصيل المالية */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3 shadow-sm">
-            <h4 className="text-sm font-bold text-[#c9a84c] text-right">$ التفاصيل المالية</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 block text-right">المدفوع</label>
-                <input type="number" placeholder="ادخل المبلغ المدفوع" value={form.paid_amount} onChange={set('paid_amount')} className={inputCls} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 block text-right">عمولتنا</label>
-                <input type="number" placeholder="ادخل العمولة..." value={form.our_commission} onChange={set('our_commission')} className={inputCls} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-gray-500 block text-right">سعر الرحلة الكاملة</label>
-              <input type="number" placeholder="ادخل سعر الرحلة" value={form.total_price} onChange={set('total_price')} className={inputCls} />
-            </div>
-            <h4 className="text-sm font-bold text-[#c9a84c] text-right pt-1">حساب التحويل</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 block text-right">إلى</label>
-                <input type="text" placeholder="ادخل اسم الحساب" value={form.to_account} onChange={set('to_account')} className={inputCls} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 block text-right">من</label>
-                <input type="text" placeholder="ادخل اسم الحساب" value={form.from_account} onChange={set('from_account')} className={inputCls} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 block text-right">طريقة التحويل</label>
-                <div className="relative">
-                  <select value={form.transfer_method} onChange={set('transfer_method')} className={`${inputCls} appearance-none`}>
-                    <option value="البنك">البنك</option>
-                    <option value="كاش">كاش</option>
-                    <option value="محفظة إلكترونية">محفظة إلكترونية</option>
-                  </select>
-                  <div className="absolute left-3 top-3 pointer-events-none text-gray-400">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 block text-right">رفع صورة التحويل</label>
-                <label className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2 cursor-pointer">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                  <span className="truncate max-w-[80px]">{form.transfer_image ? form.transfer_image.name : 'اختر الملف'}</span>
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={(e) => setForm(p => ({ ...p, transfer_image: e.target.files[0] ?? null }))} />
-                </label>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-gray-500 block text-right">ملاحظات</label>
-              <textarea rows={2} placeholder="أضف ملاحظة (اختياري)" value={form.notes} onChange={set('notes')}
-                className={`${inputCls} resize-none`} />
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 bg-[#4a4644]">
-          <button onClick={() => setShowConfirm(true)}
-            className="w-full py-3 text-sm font-bold text-white hover:bg-[#383838] transition-colors text-center rounded-xl">
-            إسناد رحلة
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function CreateTripPage() {
   const navigate = useNavigate();
   const { trips, setTrips, loading, error, retry } = useOfferedTrips();
   const [assignModal, setAssignModal] = useState({ open: false, tripId: null });
+  const [chatModal, setChatModal] = useState({ open: false, tripId: null, tripLabel: "" });
   const [editModal, setEditModal]     = useState({ open: false, trip: null });
 
   const toggleActive = (i) => setTrips(prev => prev.map((t,idx) => idx===i ? {...t,active:!t.active} : t));
@@ -371,7 +188,14 @@ export default function CreateTripPage() {
                 <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 تعديل
               </button>
-              <button className="flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 px-2 rounded hover:bg-gray-50 transition-colors">
+              <button
+                type="button"
+                onClick={() => setChatModal({
+                  open: true,
+                  tripId: trip._raw?.id,
+                  tripLabel: `${trip.from} → ${trip.to}`,
+                })}
+                className="flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 px-2 rounded hover:bg-gray-50 transition-colors">
                 <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 المحادثات
               </button>
@@ -396,14 +220,24 @@ export default function CreateTripPage() {
         }}
       />
 
+      <TripChatModal
+        isOpen={chatModal.open}
+        tripId={chatModal.tripId}
+        tripLabel={chatModal.tripLabel}
+        onClose={() => setChatModal({ open: false, tripId: null, tripLabel: "" })}
+      />
+
       <EditTripModal
         isOpen={editModal.open}
         trip={editModal.trip}
         onClose={() => setEditModal({ open: false, trip: null })}
         onSuccess={(updated) => {
-          setTrips(prev => prev.map(t =>
-            t._raw?.id === updated.id ? mapApiTrip(updated) : t
-          ));
+          if (updated) {
+            setTrips((prev) => prev.map((t) =>
+              t._raw?.id === updated.id ? mapApiTrip(updated) : t
+            ));
+          }
+          window.dispatchEvent(new CustomEvent("trips-list-refresh"));
         }}
       />
     </div>

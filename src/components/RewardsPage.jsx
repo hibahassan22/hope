@@ -1,13 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import AppModal, { ModalField, modalInputClass, ConfirmModal } from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
-
-const Portal = ({ children }) => {
-  if (typeof document === "undefined") return null;
-  return createPortal(children, document.body);
-};
 
 const Toggle = ({ checked, onChange }) => (
   <button onClick={() => onChange(!checked)}
@@ -62,9 +57,7 @@ const PromoCodeModal = ({ isOpen, editingId, initialData, onClose, onSaved }) =>
     }
   }, [isOpen, editingId]);
 
-  if (!isOpen) return null;
-
-  const inp = "w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#c9a84c]";
+  const inp = modalInputClass;
 
   const handleSave = async () => {
     if (!code || !rewardValue) return;
@@ -94,46 +87,35 @@ const PromoCodeModal = ({ isOpen, editingId, initialData, onClose, onSaved }) =>
   };
 
   return (
-    <Portal>
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl">
-      <div className="bg-white w-full max-w-2xl mx-6 rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+    <AppModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={editingId ? "تعديل الكود" : "إضافة كود جديد"}
+      isSubmitting={saving}
+      size="xl"
+      footer={
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="border border-gray-200 text-gray-600 text-xs px-6 py-2.5 rounded-lg hover:bg-gray-50 font-bold">إلغاء</button>
+          <button onClick={handleSave} disabled={saving||success}
+            className={`text-white text-xs px-8 py-2.5 rounded-lg font-bold shadow-sm transition-colors ${success?"bg-green-600":"bg-[#c9a84c] hover:bg-[#b8943f] disabled:opacity-60"}`}>
+            {success?"✓ تم الحفظ":saving?"جارٍ الحفظ...":editingId?"حفظ التعديلات":"إضافة كود"}
           </button>
-          <h3 className="text-base font-bold text-gray-800">{editingId ? "تعديل الكود" : "إضافة كود جديد"}</h3>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <div><label className="text-xs font-bold text-gray-600 block mb-2 text-right">الكود</label>
-              <input value={code} onChange={e=>setCode(e.target.value)} className={inp} placeholder="PROMO123" dir="ltr"/></div>
-            <div><label className="text-xs font-bold text-gray-600 block mb-2 text-right">النوع</label>
-              <div className="relative">
-                <select value={rewardType} onChange={e=>setRewardType(e.target.value)} className={inp+" text-right appearance-none"}>
-                  <option value="cash">نقدي</option><option value="points">نقاط</option><option value="discount">خصم</option>
-                </select>
-                <div className="absolute left-3 top-3 pointer-events-none text-gray-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg></div>
-              </div></div>
-            <div><label className="text-xs font-bold text-gray-600 block mb-2 text-right">القيمة</label>
-              <input value={rewardValue} onChange={e=>setRewardValue(e.target.value)} className={inp+" text-right"} placeholder="50"/></div>
-            <div><label className="text-xs font-bold text-gray-600 block mb-2 text-right">حد الاستخدام</label>
-              <input value={maxUsage} onChange={e=>setMaxUsage(e.target.value)} className={inp+" text-right"} placeholder="1000"/></div>
-            <div><label className="text-xs font-bold text-gray-600 block mb-2 text-right">تاريخ البداية</label>
-              <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className={inp}/></div>
-            <div><label className="text-xs font-bold text-gray-600 block mb-2 text-right">تاريخ الانتهاء</label>
-              <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className={inp}/></div>
-          </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <button onClick={onClose} className="border border-gray-200 text-gray-600 text-xs px-6 py-2.5 rounded-lg hover:bg-gray-50 font-bold">إلغاء</button>
-            <button onClick={handleSave} disabled={saving||success}
-              className={`text-white text-xs px-8 py-2.5 rounded-lg font-bold shadow-sm transition-colors ${success?"bg-green-600":"bg-[#c9a84c] hover:bg-[#b8943f] disabled:opacity-60"}`}>
-              {success?"✓ تم الحفظ":saving?"جارٍ الحفظ...":editingId?"حفظ التعديلات":"إضافة كود"}
-            </button>
-          </div>
-        </div>
+      }
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <ModalField label="الكود"><input value={code} onChange={e=>setCode(e.target.value)} className={inp} placeholder="PROMO123" dir="ltr" disabled={saving}/></ModalField>
+        <ModalField label="النوع">
+          <select value={rewardType} onChange={e=>setRewardType(e.target.value)} className={inp+" text-right appearance-none"} disabled={saving}>
+            <option value="cash">نقدي</option><option value="points">نقاط</option><option value="discount">خصم</option>
+          </select>
+        </ModalField>
+        <ModalField label="القيمة"><input value={rewardValue} onChange={e=>setRewardValue(e.target.value)} className={inp+" text-right"} placeholder="50" disabled={saving}/></ModalField>
+        <ModalField label="حد الاستخدام"><input value={maxUsage} onChange={e=>setMaxUsage(e.target.value)} className={inp+" text-right"} placeholder="1000" disabled={saving}/></ModalField>
+        <ModalField label="تاريخ البداية"><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className={inp} disabled={saving}/></ModalField>
+        <ModalField label="تاريخ الانتهاء"><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className={inp} disabled={saving}/></ModalField>
       </div>
-    </div>
-    </Portal>
+    </AppModal>
   );
 };
 
@@ -410,28 +392,16 @@ export default function RewardsPage() {
         onSaved={fetchCodes}
       />
 
-      {/* Delete Confirm Modal */}
-      {deleteConfirm.open && (
-        <Portal>
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl">
-          <div className="bg-white w-full max-w-sm mx-6 rounded-2xl shadow-xl p-6 text-center space-y-5">
-            <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-              <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 mb-1">تأكيد الحذف</h3>
-              <p className="text-sm text-gray-500">هل أنت متأكد من حذف الكود <span className="font-bold text-amber-600">{deleteConfirm.code}</span>؟</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={()=>setDeleteConfirm({open:false,id:null,code:""})} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm">إلغاء</button>
-              <button onClick={confirmDeleteCode} disabled={deleteLoading} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-60">
-                {deleteLoading?"جارٍ الحذف...":"حذف الكود"}
-              </button>
-            </div>
-          </div>
-        </div>
-        </Portal>
-      )}
+      <ConfirmModal
+        isOpen={deleteConfirm.open}
+        onClose={()=>setDeleteConfirm({open:false,id:null,code:""})}
+        onConfirm={confirmDeleteCode}
+        title="تأكيد الحذف"
+        message={<>هل أنت متأكد من حذف الكود <span className="font-bold text-amber-600">{deleteConfirm.code}</span>؟</>}
+        confirmLabel="حذف الكود"
+        isSubmitting={deleteLoading}
+        variant="danger"
+      />
 
     </div>
   );

@@ -21,6 +21,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import AddPaymentModal from './AddPaymentModal';
 import EditTripModal from './EditTripModal';
+import AppModal, { ModalField, ModalActions, modalInputClass } from './ui/AppModal';
 
 const API_BASE = "/api";
 
@@ -28,10 +29,9 @@ const API_BASE = "/api";
 // 2. مودال تغيير حالة الرحلة 
 // ==========================================
 const ChangeStatusModal = ({ isOpen, onClose, onStatusChange }) => {
-    if (!isOpen) return null;
-
     const [selectedStatus, setSelectedStatus] = useState('progress');
     const [reason, setReason] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const statusOptions = [
         { id: 'progress', label: 'قيد التنفيذ', icon: <Clock className="w-4 h-4 text-blue-500" />, activeClass: 'border-blue-500 bg-blue-50/10' },
@@ -42,69 +42,66 @@ const ChangeStatusModal = ({ isOpen, onClose, onStatusChange }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (onStatusChange) {
-            await onStatusChange(selectedStatus, reason);
+        setIsSubmitting(true);
+        try {
+            if (onStatusChange) await onStatusChange(selectedStatus, reason);
+            onClose();
+        } finally {
+            setIsSubmitting(false);
         }
-        onClose();
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans" dir="rtl">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex items-start justify-between p-4 pb-2">
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors mt-1">
-                        <X className="w-5 h-5" />
-                    </button>
-                    <div className="text-right flex-1 pr-3">
-                        <h3 className="text-base font-semibold text-gray-800">تغيير حالة الرحلة</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">اختر الحالة الجديدة وأدخل سبب التغيير</p>
-                    </div>
+        <AppModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="تغيير حالة الرحلة"
+            subtitle="اختر الحالة الجديدة وأدخل سبب التغيير"
+            isSubmitting={isSubmitting}
+            size="md"
+        >
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold text-gray-500">الحالة الجديدة</label>
+                    {statusOptions.map((option) => {
+                        const isSelected = selectedStatus === option.id;
+                        return (
+                            <button
+                                key={option.id}
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => setSelectedStatus(option.id)}
+                                className={`w-full flex items-center gap-3 border rounded-xl p-3 text-right transition-all disabled:opacity-50 ${isSelected ? option.activeClass : 'border-gray-200 hover:bg-gray-50'}`}
+                            >
+                                <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'border-amber-600' : 'border-gray-300'}`}>
+                                    {isSelected && <span className="w-2 h-2 bg-amber-600 rounded-full" />}
+                                </span>
+                                {option.icon}
+                                <span className={`text-xs font-medium ${isSelected ? 'text-gray-800 font-semibold' : 'text-gray-600'}`}>
+                                    {option.label}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
-
-                <form onSubmit={handleSubmit} className="p-5 pt-2 flex-1 overflow-y-auto space-y-4">
-                    <div className="flex flex-col gap-2">
-                        <label className="text-xs font-semibold text-gray-500 mb-1">الحالة الجديدة</label>
-                        {statusOptions.map((option) => {
-                            const isSelected = selectedStatus === option.id;
-                            return (
-                                <div
-                                    key={option.id}
-                                    onClick={() => setSelectedStatus(option.id)}
-                                    className={`flex items-center border rounded-xl p-3 cursor-pointer transition-all ${isSelected ? option.activeClass : 'border-gray-200 hover:bg-gray-50'}`}
-                                >
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-amber-600' : 'border-gray-300'}`}>
-                                            {isSelected && <div className="w-2 h-2 bg-amber-600 rounded-full"></div>}
-                                        </div>
-                                        {option.icon}
-                                        <span className={`text-xs font-medium ${isSelected ? 'text-gray-800 font-semibold' : 'text-gray-600'}`}>
-                                            {option.label}
-                                        </span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-gray-500">سبب التغيير</label>
-                        <textarea
-                            rows="3"
-                            placeholder="ادخل اي ملاحظات اضافية"
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-300 focus:border-amber-500 focus:outline-none transition-colors resize-none"
-                        ></textarea>
-                    </div>
-
-                    <div className="pt-2">
-                        <button type="submit" className="w-full rounded-xl bg-[#4a4746] py-3 text-sm font-semibold text-white hover:bg-black transition-colors shadow-sm">
-                            تأكيد التغيير
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                <ModalField label="سبب التغيير">
+                    <textarea
+                        rows={3}
+                        placeholder="ادخل اي ملاحظات اضافية"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        className={`${modalInputClass} resize-none`}
+                        disabled={isSubmitting}
+                    />
+                </ModalField>
+                <ModalActions
+                    primaryLabel="تأكيد التغيير"
+                    primaryType="submit"
+                    onSecondary={onClose}
+                    isSubmitting={isSubmitting}
+                />
+            </form>
+        </AppModal>
     );
 };
 
@@ -125,8 +122,8 @@ const TripsLog = () => {
     const [tripsError, setTripsError] = useState(null);
 
     // جلب الرحلات من API
-    const fetchTrips = async () => {
-        setTripsLoading(true);
+    const fetchTrips = async ({ silent = false } = {}) => {
+        if (!silent) setTripsLoading(true);
         setTripsError(null);
         try {
             const res = await fetch(`${API_BASE}/trips`);
@@ -137,7 +134,7 @@ const TripsLog = () => {
         } catch (err) {
             setTripsError(err.message);
         } finally {
-            setTripsLoading(false);
+            if (!silent) setTripsLoading(false);
         }
     };
 
@@ -437,7 +434,11 @@ const TripsLog = () => {
                 trip={selectedTrip}
                 onClose={() => { setIsEditModalOpen(false); setSelectedTrip(null); }}
                 onSuccess={(updated) => {
-                    setTrips(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
+                    if (updated?.id) {
+                        setTrips((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+                    } else {
+                        fetchTrips({ silent: true });
+                    }
                 }}
             />
         </div>

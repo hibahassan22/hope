@@ -1,10 +1,5 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-
-const Portal = ({ children }) => {
-  if (typeof document === "undefined") return null;
-  return createPortal(children, document.body);
-};
+import AppModal, { ModalField, ModalActions, modalInputClass } from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 
@@ -208,134 +203,104 @@ export default function NotificationsPanel() {
         )}
       </div>
 
-      {/* Modal — rendered via portal to cover full screen including sidebar */}
-      {isOpen && (
-        <Portal>
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl">
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden mx-4">
+      {/* Send notification modal */}
+      <AppModal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="إرسال إشعار جديد"
+        isSubmitting={sending}
+        size="md"
+      >
+        <form onSubmit={handleSend} className="space-y-4">
+          {sendErr && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-2 text-right">
+              {sendErr}
+            </div>
+          )}
 
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-              </button>
-              <h2 className="text-base font-bold text-gray-800">إرسال إشعار جديد</h2>
+          <ModalField label="عنوان الإشعار" required>
+            <input
+              type="text"
+              required
+              value={form.title}
+              onChange={e => setForm({ ...form, title: e.target.value })}
+              placeholder="مثال: عيد مبارك"
+              className={modalInputClass}
+              disabled={sending}
+            />
+          </ModalField>
+
+          <ModalField label="الرسالة" required>
+            <textarea
+              rows={4}
+              required
+              value={form.content}
+              onChange={e => setForm({ ...form, content: e.target.value })}
+              placeholder="اكتب رسالة الإشعار..."
+              className={`${modalInputClass} resize-none`}
+              disabled={sending}
+            />
+          </ModalField>
+
+          <ModalField label="النوع">
+            <select
+              value={form.type}
+              onChange={e => setForm({ ...form, type: e.target.value })}
+              className={`${modalInputClass} appearance-none`}
+              disabled={sending}
+            >
+              {TYPE_OPTIONS.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </ModalField>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-end gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+                جدولة
+                <input
+                  type="radio"
+                  name="sendMode"
+                  value="scheduled"
+                  checked={form.sendMode === "scheduled"}
+                  onChange={() => setForm({ ...form, sendMode: "scheduled" })}
+                  className="accent-[#c9a84c]"
+                  disabled={sending}
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+                إرسال الآن
+                <input
+                  type="radio"
+                  name="sendMode"
+                  value="now"
+                  checked={form.sendMode === "now"}
+                  onChange={() => setForm({ ...form, sendMode: "now" })}
+                  className="accent-[#c9a84c]"
+                  disabled={sending}
+                />
+              </label>
             </div>
 
-            <form onSubmit={handleSend} className="p-6 space-y-4">
-              {sendErr && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-2 text-right">
-                  {sendErr}
-                </div>
-              )}
-
-              {/* Title */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500 block text-right">عنوان الإشعار</label>
-                <input
-                  type="text"
-                  required
-                  value={form.title}
-                  onChange={e => setForm({ ...form, title: e.target.value })}
-                  placeholder="مثال: عيد مبارك"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none text-right"
-                />
-              </div>
-
-              {/* Message */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500 block text-right">الرسالة</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={form.content}
-                  onChange={e => setForm({ ...form, content: e.target.value })}
-                  placeholder="اكتب رسالة الإشعار..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none text-right resize-none"
-                />
-              </div>
-
-              {/* Type */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500 block text-right">النوع</label>
-                <div className="relative">
-                  <select
-                    value={form.type}
-                    onChange={e => setForm({ ...form, type: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none bg-white text-right appearance-none"
-                  >
-                    {TYPE_OPTIONS.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                  <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                  </svg>
-                </div>
-              </div>
-
-              {/* Send mode */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-end gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                    جدولة
-                    <input
-                      type="radio"
-                      name="sendMode"
-                      value="scheduled"
-                      checked={form.sendMode === "scheduled"}
-                      onChange={() => setForm({ ...form, sendMode: "scheduled" })}
-                      className="accent-[#c9a84c]"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                    إرسال الآن
-                    <input
-                      type="radio"
-                      name="sendMode"
-                      value="now"
-                      checked={form.sendMode === "now"}
-                      onChange={() => setForm({ ...form, sendMode: "now" })}
-                      className="accent-[#c9a84c]"
-                    />
-                  </label>
-                </div>
-
-                {form.sendMode === "scheduled" && (
-                  <input
-                    type="datetime-local"
-                    value={form.scheduledAt}
-                    onChange={e => setForm({ ...form, scheduledAt: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none text-right"
-                  />
-                )}
-              </div>
-
-              {/* Info banner */}
-              <div className="bg-[#f0f7ff] border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-600 text-center">
-                سيتم إرسال هذا الإشعار إلى جميع السائقين المسجلين في النظام
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
+            {form.sendMode === "scheduled" && (
+              <input
+                type="datetime-local"
+                value={form.scheduledAt}
+                onChange={e => setForm({ ...form, scheduledAt: e.target.value })}
+                className={modalInputClass}
                 disabled={sending}
-                className="w-full bg-gray-800 hover:bg-gray-900 disabled:opacity-60 text-white font-bold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                {sending ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-                    جارٍ الإرسال...
-                  </>
-                ) : "حفظ"}
-              </button>
-            </form>
+              />
+            )}
           </div>
-        </div>
-        </Portal>
-      )}
+
+          <div className="bg-[#f0f7ff] border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-600 text-center">
+            سيتم إرسال هذا الإشعار إلى جميع السائقين المسجلين في النظام
+          </div>
+
+          <ModalActions primaryLabel="حفظ" onPrimary={() => {}} primaryType="submit" onSecondary={() => setIsOpen(false)} isSubmitting={sending} />
+        </form>
+      </AppModal>
     </div>
   );
 }

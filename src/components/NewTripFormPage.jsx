@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import AppModal, { modalInputClass } from "./ui/AppModal";
 
 const API_BASE = "/api";
 
@@ -92,51 +93,13 @@ function MapPickerModal({ title, onClose, onConfirm }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: "80vh" }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <p className="text-sm font-bold text-gray-800">{title}</p>
-        </div>
-
-        {/* Search */}
-        <div className="flex gap-2 px-4 py-3 border-b border-gray-100">
-          <button
-            onClick={handleSearch}
-            className="px-3 py-2 bg-[#c9a84c] text-white text-xs rounded-xl hover:bg-[#b8973d] transition-colors shrink-0"
-          >
-            بحث
-          </button>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSearch()}
-            placeholder="ابحث عن موقع... مثال: الرياض"
-            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#c9a84c] text-right"
-          />
-        </div>
-
-        {/* Map */}
-        <div className="flex-1 relative">
-          {!ready && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-gray-400 text-sm gap-2 z-10">
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-              جاري تحميل الخريطة...
-            </div>
-          )}
-          <div ref={mapRef} className="w-full h-full" />
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-100">
+    <AppModal
+      isOpen
+      onClose={onClose}
+      title={title}
+      size="lg"
+      footer={
+        <div>
           <p className="text-xs text-gray-400 text-center mb-2">اضغط على الخريطة لتحديد الموقع</p>
           <button
             onClick={() => selected && onConfirm(selected)}
@@ -148,8 +111,36 @@ function MapPickerModal({ title, onClose, onConfirm }) {
               : "اختر موقعاً على الخريطة أولاً"}
           </button>
         </div>
+      }
+    >
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={handleSearch}
+          className="px-3 py-2 bg-[#c9a84c] text-white text-xs rounded-xl hover:bg-[#b8973d] transition-colors shrink-0"
+        >
+          بحث
+        </button>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSearch()}
+          placeholder="ابحث عن موقع... مثال: الرياض"
+          className={`${modalInputClass} flex-1`}
+        />
       </div>
-    </div>
+      <div className="relative rounded-xl overflow-hidden" style={{ height: "50vh" }}>
+        {!ready && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-gray-400 text-sm gap-2 z-10">
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            جاري تحميل الخريطة...
+          </div>
+        )}
+        <div ref={mapRef} className="w-full h-full" />
+      </div>
+    </AppModal>
   );
 }
 
@@ -214,26 +205,9 @@ const DAYS = [
 // ── Modal wrapper ──────────────────────────────────────────────────
 function Modal({ title, sub, onClose, children, footer }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <div className="text-right">
-            <p className="text-base font-bold text-gray-800">{title}</p>
-            {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-          </div>
-        </div>
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">{children}</div>
-        {/* Footer */}
-        {footer && <div className="px-5 py-4 border-t border-gray-100">{footer}</div>}
-      </div>
-    </div>
+    <AppModal isOpen onClose={onClose} title={title} subtitle={sub} size="md" footer={footer}>
+      <div className="space-y-4">{children}</div>
+    </AppModal>
   );
 }
 

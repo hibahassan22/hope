@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import ReactDOM from "react-dom";
 import { useToast } from "../lib/toast";
+import AppModal, { ModalField, ModalActions, modalInputClass, ConfirmModal } from "./ui/AppModal";
 import {
   sendDriverNotification,
   fetchAllDriverNotifications,
@@ -28,9 +28,6 @@ const Spinner = () => (
     <div className="w-9 h-9 border-4 border-[#c9a84c] border-t-transparent rounded-full animate-spin" />
   </div>
 );
-
-const Portal = ({ children }) =>
-  typeof document !== "undefined" ? ReactDOM.createPortal(children, document.body) : null;
 
 const ChevronIcon = ({ dir = "down" }) => (
   <svg className={"w-4 h-4 " + (dir === "left" ? "rotate-90" : dir === "right" ? "-rotate-90" : "")}
@@ -74,72 +71,49 @@ function SendModal({ isOpen, onClose, onSent }) {
 
   if (!isOpen) return null;
   return (
-    <Portal>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl"
-        onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden mx-4">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <button onClick={() => { reset(); onClose(); }} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <h2 className="text-base font-bold text-gray-800">إرسال إشعار جديد</h2>
+    <AppModal isOpen={isOpen} onClose={() => { reset(); onClose(); }} title="إرسال إشعار جديد" isSubmitting={sending} size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {err && <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-2.5 text-right">{err}</div>}
+        <ModalField label="عنوان الإشعار" required>
+          <input type="text" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+            placeholder="مثال: عيد مبارك" className={modalInputClass} disabled={sending} />
+        </ModalField>
+        <ModalField label="محتوى الإشعار" required>
+          <textarea rows={4} required value={form.content} onChange={e => setForm({ ...form, content: e.target.value })}
+            placeholder="اكتب محتوى الإشعار..." className={`${modalInputClass} resize-none`} disabled={sending} />
+        </ModalField>
+        <ModalField label="نوع الإشعار">
+          <div className="relative">
+            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
+              className={`${modalInputClass} appearance-none`} disabled={sending}>
+              {TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+            </select>
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400"><ChevronIcon /></div>
           </div>
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {err && <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-2.5 text-right">{err}</div>}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500 block text-right">عنوان الإشعار *</label>
-              <input type="text" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-                placeholder="مثال: عيد مبارك"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none text-right" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500 block text-right">محتوى الإشعار *</label>
-              <textarea rows={4} required value={form.content} onChange={e => setForm({ ...form, content: e.target.value })}
-                placeholder="اكتب محتوى الإشعار..."
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none text-right resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500 block text-right">نوع الإشعار</label>
-              <div className="relative">
-                <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none bg-white text-right appearance-none">
-                  {TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
-                </select>
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400"><ChevronIcon /></div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-500 block text-right">وقت الإرسال</label>
-              <div className="flex items-center justify-end gap-5">
-                {[{ val: "now", lbl: "إرسال الآن" }, { val: "scheduled", lbl: "جدولة" }].map(o => (
-                  <label key={o.val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                    {o.lbl}
-                    <input type="radio" name="sendMode" value={o.val} checked={form.sendMode === o.val}
-                      onChange={() => setForm({ ...form, sendMode: o.val })} className="accent-[#c9a84c]" />
-                  </label>
-                ))}
-              </div>
-              {form.sendMode === "scheduled" && (
-                <input type="datetime-local" value={form.scheduledAt}
-                  onChange={e => setForm({ ...form, scheduledAt: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none" />
-              )}
-            </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-600 text-center">
-              سيتم إرسال هذا الإشعار إلى جميع السائقين المسجلين في النظام
-            </div>
-            <button type="submit" disabled={sending}
-              className="w-full bg-[#4a4746] hover:bg-black disabled:opacity-60 text-white font-bold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
-              {sending
-                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />جارٍ الإرسال...</>
-                : "إرسال الإشعار"}
-            </button>
-          </form>
+        </ModalField>
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-gray-500 block text-right">وقت الإرسال</label>
+          <div className="flex items-center justify-end gap-5">
+            {[{ val: "now", lbl: "إرسال الآن" }, { val: "scheduled", lbl: "جدولة" }].map(o => (
+              <label key={o.val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+                {o.lbl}
+                <input type="radio" name="sendMode" value={o.val} checked={form.sendMode === o.val}
+                  onChange={() => setForm({ ...form, sendMode: o.val })} className="accent-[#c9a84c]" disabled={sending} />
+              </label>
+            ))}
+          </div>
+          {form.sendMode === "scheduled" && (
+            <input type="datetime-local" value={form.scheduledAt}
+              onChange={e => setForm({ ...form, scheduledAt: e.target.value })}
+              className={modalInputClass} disabled={sending} />
+          )}
         </div>
-      </div>
-    </Portal>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-600 text-center">
+          سيتم إرسال هذا الإشعار إلى جميع السائقين المسجلين في النظام
+        </div>
+        <ModalActions primaryLabel="إرسال الإشعار" onPrimary={() => {}} primaryType="submit" onSecondary={() => { reset(); onClose(); }} isSubmitting={sending} />
+      </form>
+    </AppModal>
   );
 }
 
@@ -148,19 +122,8 @@ function DetailModal({ notification: n, onClose }) {
   if (!n) return null;
   const cfg = statusCfg(n.status);
   return (
-    <Portal>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl"
-        onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden mx-4">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <h2 className="text-base font-bold text-gray-800">تفاصيل الإشعار</h2>
-          </div>
-          <div className="p-6 space-y-4 text-right">
+    <AppModal isOpen={!!n} onClose={onClose} title="تفاصيل الإشعار" size="sm">
+      <div className="space-y-4 text-right">
             <div>
               <p className="text-xs text-gray-400 mb-1">العنوان</p>
               <p className="text-sm font-bold text-gray-800">{n.title || "—"}</p>
@@ -189,10 +152,8 @@ function DetailModal({ notification: n, onClose }) {
               <p className="text-xs text-gray-400 mb-1">تاريخ الإنشاء</p>
               <p className="text-sm text-gray-700">{fmtDate(n.createdAt)}</p>
             </div>
-          </div>
-        </div>
       </div>
-    </Portal>
+    </AppModal>
   );
 }
 
@@ -200,7 +161,6 @@ function DetailModal({ notification: n, onClose }) {
 function DeleteModal({ notificationId, onClose, onDeleted }) {
   const toast  = useToast();
   const [busy, setBusy] = useState(false);
-  if (!notificationId) return null;
   const handleDelete = async () => {
     setBusy(true);
     try {
@@ -211,30 +171,16 @@ function DeleteModal({ notificationId, onClose, onDeleted }) {
     finally { setBusy(false); onClose(); }
   };
   return (
-    <Portal>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" dir="rtl"
-        onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 mx-4 text-center space-y-5">
-          <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-            <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-gray-800 mb-1">تأكيد الحذف</h3>
-            <p className="text-sm text-gray-500">هل أنت متأكد من حذف هذا الإشعار؟ لا يمكن التراجع عن هذا الإجراء.</p>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm">إلغاء</button>
-            <button onClick={handleDelete} disabled={busy}
-              className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-60">
-              {busy ? "جارٍ الحذف..." : "حذف"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Portal>
+    <ConfirmModal
+      isOpen={!!notificationId}
+      onClose={onClose}
+      onConfirm={handleDelete}
+      title="تأكيد الحذف"
+      message="هل أنت متأكد من حذف هذا الإشعار؟ لا يمكن التراجع عن هذا الإجراء."
+      confirmLabel="حذف"
+      isSubmitting={busy}
+      variant="danger"
+    />
   );
 }
 

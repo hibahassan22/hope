@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect, createContext, useContext } from "react";
+﻿import { useState, useCallback, useEffect, createContext, useContext, useMemo } from "react";
 
 // ── Types: success | error | warning | info ────────────────────
 const ICONS = {
@@ -76,12 +76,12 @@ export function ToastProvider({ children }) {
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
-  return {
+  return useMemo(() => ({
     success: (msg, dur) => ctx(msg, "success", dur),
     error:   (msg, dur) => ctx(msg, "error",   dur),
     warning: (msg, dur) => ctx(msg, "warning", dur),
     info:    (msg, dur) => ctx(msg, "info",    dur),
-  };
+  }), [ctx]);
 }
 
 // ── Global helper (usable outside components) ──────────────────

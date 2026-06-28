@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import AppModal from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 
@@ -31,33 +31,12 @@ const labelColorMap = {
   blue:   { badge: "bg-blue-500 text-white" },
 };
 
-// ======= Modal wrapper =======
-function Modal({ title, onClose, children }) {
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
-      dir="rtl"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <h3 className="text-base font-semibold text-gray-800">{title}</h3>
-        </div>
-        <div className="px-5 py-4 space-y-4">{children}</div>
-      </div>
-    </div>,
-    document.body
+// ======= Modal wrapper — AppModal موحّد =======
+function Modal({ title, onClose, children, isSubmitting = false, size = "md" }) {
+  return (
+    <AppModal isOpen onClose={onClose} title={title} isSubmitting={isSubmitting} size={size}>
+      <div className="space-y-4">{children}</div>
+    </AppModal>
   );
 }
 

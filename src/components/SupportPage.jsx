@@ -1,13 +1,7 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import AppModal, { ModalField, ModalActions, modalInputClass, ConfirmModal } from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
-
-// Safe portal helper — avoids "Target container is not a DOM element" error
-const Portal = ({ children }) => {
-  if (typeof document === "undefined") return null;
-  return createPortal(children, document.body);
-};
 
 // ── Helpers ───────────────────────────────────────────────────
 const STATUS_MAP = {
@@ -35,7 +29,6 @@ const Spinner = () => (
 const NoteModal = ({ isOpen, onClose, ticketId, onSaved }) => {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  if (!isOpen) return null;
   const submit = async () => {
     if (!note.trim()) return;
     setSaving(true);
@@ -49,23 +42,14 @@ const NoteModal = ({ isOpen, onClose, ticketId, onSaved }) => {
     } catch(e){ console.error(e); }
     finally { setSaving(false); }
   };
-  return (<Portal>
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" dir="rtl">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
-          <h3 className="text-base font-semibold text-gray-800">إضافة ملاحظة</h3>
-        </div>
-        <div className="p-5 space-y-3">
-          <label className="block text-sm text-gray-600 text-right">ملاحظة</label>
-          <textarea rows="5" value={note} onChange={e=>setNote(e.target.value)} placeholder="أضف ملاحظتك هنا ..." className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-[#c9a84c] focus:outline-none resize-none text-right placeholder-gray-300"/>
-          <button onClick={submit} disabled={saving} className="w-full rounded-xl bg-[#4a4644] py-3 text-sm font-semibold text-white hover:bg-black transition-colors disabled:opacity-60">
-            {saving ? "جارٍ الحفظ..." : "حفظ"}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Portal>);
+  return (
+    <AppModal isOpen={isOpen} onClose={onClose} title="إضافة ملاحظة" isSubmitting={saving} size="md">
+      <ModalField label="ملاحظة">
+        <textarea rows={5} value={note} onChange={e=>setNote(e.target.value)} placeholder="أضف ملاحظتك هنا ..." className={`${modalInputClass} resize-none`} disabled={saving}/>
+      </ModalField>
+      <ModalActions primaryLabel="حفظ" onPrimary={submit} onSecondary={onClose} isSubmitting={saving} />
+    </AppModal>
+  );
 };
 
 // ── Reusable form helpers (outside modal to avoid remount) ───
@@ -134,8 +118,6 @@ const TicketModal = ({ isOpen, onClose, ticket, onSaved, drivers }) => {
     ? allTrips.filter(t => String(t.driver_id) === String(driverId))
     : [];
 
-  if (!isOpen) return null;
-
   const submit = async e => {
     e.preventDefault();
     setSaving(true);
@@ -176,14 +158,15 @@ const TicketModal = ({ isOpen, onClose, ticket, onSaved, drivers }) => {
     }
   };
 
-  return (<Portal>
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" dir="rtl">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
-          <h3 className="text-base font-bold text-gray-800">{isEditing ? "تعديل التذكرة" : "إنشاء تذكرة جديدة"}</h3>
-        </div>
-        <form onSubmit={submit} className="flex-1 overflow-y-auto p-5 space-y-4" style={{maxHeight: "75vh"}}>
+  return (
+    <AppModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? "تعديل التذكرة" : "إنشاء تذكرة جديدة"}
+      isSubmitting={saving}
+      size="lg"
+    >
+      <form onSubmit={submit} className="space-y-4">
           <TicketField label="السائق">
             <TicketSelWrap>
               <select className={selCls} value={driverId} onChange={e=>setDriverId(e.target.value)} required>
@@ -267,31 +250,23 @@ const TicketModal = ({ isOpen, onClose, ticket, onSaved, drivers }) => {
             {saving ? "جارٍ الحفظ..." : isEditing ? "حفظ التعديلات" : "إنشاء تذكرة"}
           </button>
         </form>
-      </div>
-    </div>
-  </Portal>);
+    </AppModal>
+  );
 };
 
 // ── Delete Confirm ────────────────────────────────────────────
-const DeleteModal = ({ isOpen, onClose, onConfirm, loading }) => {
-  if (!isOpen) return null;
-  return (<Portal>
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" dir="rtl">
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center space-y-5">
-        <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-          <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </div>
-        <p className="text-sm text-gray-600">هل أنت متأكد من حذف هذه التذكرة؟</p>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="w-full bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl text-sm">إلغاء</button>
-          <button onClick={onConfirm} disabled={loading} className="w-full bg-red-500 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-60">
-            {loading ? "جارٍ الحذف..." : "حذف"}
-          </button>
-        </div>
-      </div>
-    </div>
-  </Portal>);
-};
+const DeleteModal = ({ isOpen, onClose, onConfirm, loading }) => (
+  <ConfirmModal
+    isOpen={isOpen}
+    onClose={onClose}
+    onConfirm={onConfirm}
+    title="تأكيد الحذف"
+    message="هل أنت متأكد من حذف هذه التذكرة؟"
+    confirmLabel="حذف"
+    isSubmitting={loading}
+    variant="danger"
+  />
+);
 
 // ── Chat mock data ────────────────────────────────────────────
 const driversChats = [

@@ -3,6 +3,7 @@ import { useAuthContext } from "../context/AuthContext.jsx";
 import { useToast } from "../lib/toast.jsx";
 import UserForm from "./users/UserForm.jsx";
 import UserTable from "./users/UserTable.jsx";
+import AppModal, { ConfirmModal } from "./ui/AppModal";
 import {
   subscribeUsers,
   createUser,
@@ -274,62 +275,37 @@ function UsersPageContent() {
       </div>
 
       {/* Edit modal */}
-      {editUser && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                type="button"
-                onClick={() => setEditUser(null)}
-                className="sm:hidden text-gray-400 p-1"
-                aria-label="إغلاق"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <h3 className="text-base font-bold text-gray-800 text-right flex-1">تعديل المستخدم</h3>
-            </div>
-            <UserForm
-              mode="edit"
-              initial={editUser}
-              roles={roles}
-              departments={departments}
-              onSubmit={handleEdit}
-              onCancel={() => setEditUser(null)}
-              loading={submitting}
-            />
-          </div>
-        </div>
-      )}
+      <AppModal
+        isOpen={!!editUser}
+        onClose={() => setEditUser(null)}
+        title="تعديل المستخدم"
+        isSubmitting={submitting}
+        size="lg"
+      >
+        {editUser && (
+          <UserForm
+            mode="edit"
+            initial={editUser}
+            roles={roles}
+            departments={departments}
+            onSubmit={handleEdit}
+            onCancel={() => setEditUser(null)}
+            loading={submitting}
+          />
+        )}
+      </AppModal>
 
       {/* Delete modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-5 sm:p-6 text-center space-y-4">
-            <p className="text-sm text-gray-600 leading-relaxed">
-              حذف <span className="font-bold text-gray-900">{deleteTarget.fullName}</span>؟
-            </p>
-            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-2.5 bg-gray-100 rounded-xl text-sm font-medium"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={submitting}
-                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium disabled:opacity-60"
-              >
-                {submitting ? "جارٍ الحذف..." : "حذف"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="تأكيد الحذف"
+        message={deleteTarget ? <>حذف <span className="font-bold text-gray-900">{deleteTarget.fullName}</span>؟</> : ""}
+        confirmLabel="حذف"
+        isSubmitting={submitting}
+        variant="danger"
+      />
     </div>
   );
 }
