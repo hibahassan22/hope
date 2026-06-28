@@ -4,6 +4,7 @@
 
 
 export { canAccessRoute, ADMIN_ONLY_ROUTES } from "./permissions.js";
+export { resolvePermissions, createRoleAccess, getFirstAccessibleRoute } from "./roleAccess.js";
 
 export const ROLES = {
   ADMIN: "admin",
@@ -35,7 +36,7 @@ export const STATUS_LABELS = {
   disabled: "معطل",
 };
 
-/** Default permissions per role (overridden by Firestore roles collection) */
+/** Default permissions per built-in role (until Admin configures Firestore roles) */
 export const DEFAULT_ROLE_PERMISSIONS = {
   admin: ["*"],
   support: [
@@ -55,82 +56,6 @@ export const DEFAULT_ROLE_PERMISSIONS = {
   ],
 };
 
-export const SUPERVISOR_ROUTES = [
-  "/dashboard",
-  "/trips",
-  "/clients",
-  "/drivers",
-  "/support",
-  "/notifications",
-  "/alerts",
-  "/activity",
-  "/approvals",
-  "/settings",
-  "/create-trip",
-  "/new-trip",
-];
-
-export function resolvePermissions(role, roleDocPermissions = [], userPermissions = []) {
-  if (userPermissions?.length) return userPermissions;
-  if (roleDocPermissions?.length) return roleDocPermissions;
-  return DEFAULT_ROLE_PERMISSIONS[role] ?? DEFAULT_ROLE_PERMISSIONS.support;
-}
-
 export function hasWildcard(permissions) {
   return permissions?.includes("*");
-}
-
-/** Which routes each role may access (route guard). Admin = full access. */
-export const ROLE_ROUTES = {
-  support: [
-    "/dashboard",
-    "/trips",
-    "/clients",
-    "/drivers",
-    "/support",
-    "/notifications",
-    "/alerts",
-    "/activity",
-    "/approvals",
-    "/settings",
-    "/create-trip",
-    "/new-trip",
-  ],
-  accountant: [
-    "/dashboard",
-    "/trips",
-    "/rewards",
-    "/settings",
-  ],
-  supervisor: SUPERVISOR_ROUTES,
-};
-
-export function canAccess(role, pathname) {
-  if (pathname === "/change-password") return true;
-  if (!role || role === ROLES.ADMIN) return true;
-  const allowed = ROLE_ROUTES[role] ?? ROLE_ROUTES.support;
-  return allowed.some((r) => pathname === r || pathname.startsWith(r + "/"));
-}
-
-/** Sidebar visibility per route — null = all roles (original config) */
-export const NAV_ROLE_MAP = {
-  "/dashboard":     null,
-  "/trips":         null,
-  "/create-trip":   ["admin", "support"],
-  "/clients":       ["admin", "support"],
-  "/drivers":       ["admin", "support"],
-  "/rewards":       ["admin", "accountant"],
-  "/support":       ["admin", "support"],
-  "/notifications": ["admin", "support"],
-  "/activity":      ["admin", "support"],
-  "/approvals":     ["admin", "support"],
-  "/permissions":   ["admin"],
-  "/users":         ["admin"],
-  "/system":        ["admin"],
-  "/settings":      null,
-};
-
-export function canSeeNavItem(route, role) {
-  const allowed = NAV_ROLE_MAP[route];
-  return !allowed || allowed.includes(role);
 }

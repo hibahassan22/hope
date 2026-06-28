@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import EditTripModal from "./EditTripModal";
 import AssignTripModal from "./AssignTripModal";
 import TripChatModal from "./TripChatModal";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { filterByGlobalSearch } from "../lib/searchUtils";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
 
 const BASE_URL = "https://drivo1.elmoroj.com/api";
 const API_URL = `${BASE_URL}/trip-without-drivers`;
@@ -66,6 +70,26 @@ export default function CreateTripPage() {
   const [assignModal, setAssignModal] = useState({ open: false, tripId: null });
   const [chatModal, setChatModal] = useState({ open: false, tripId: null, tripLabel: "" });
   const [editModal, setEditModal]     = useState({ open: false, trip: null });
+  const { searchQuery } = useGlobalSearch();
+  const { can } = usePermissions();
+  const canCreate = can(PERMISSIONS.TRIPS_ADS_CREATE);
+  const canEdit = can(PERMISSIONS.TRIPS_ADS_EDIT);
+  const canDelete = can(PERMISSIONS.TRIPS_ADS_DELETE);
+  const canPublish = can(PERMISSIONS.TRIPS_ADS_PUBLISH);
+
+  const filteredTrips = useMemo(
+    () => filterByGlobalSearch(trips, searchQuery, (trip) => [
+      trip.id,
+      trip.from,
+      trip.to,
+      trip.customerName,
+      trip.phone,
+      trip.tripType,
+      trip.status,
+      ...(trip.badges ?? []),
+    ]),
+    [trips, searchQuery]
+  );
 
   const toggleActive = (i) => setTrips(prev => prev.map((t,idx) => idx===i ? {...t,active:!t.active} : t));
   const deleteTrip  = (i) => setTrips(prev => prev.filter((_,idx) => idx!==i));
@@ -93,10 +117,12 @@ export default function CreateTripPage() {
         <div className="z-10 text-white text-right ml-auto">
           <h2 className="text-5xl font-extrabold flex items-baseline gap-2"><span>{loading ? "…" : trips.length}</span><span className="text-2xl font-normal">رحلة</span></h2>
           <p className="text-sm opacity-90 mt-1">عدد الرحلات النشطة</p>
+          {canCreate && (
           <button onClick={() => navigate("/new-trip")} className="mt-4 flex items-center gap-2 bg-white text-[#b88121] text-sm font-semibold px-5 py-2 rounded-full shadow hover:bg-amber-50 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             إنشاء رحلة جديدة
           </button>
+          )}
         </div>
       </div>
 
@@ -117,10 +143,12 @@ export default function CreateTripPage() {
           </div>
         )}
         {/* Empty */}
-        {!loading && !error && trips.length === 0 && (
-          <p className="text-center text-gray-400 text-sm py-10">لا توجد رحلات متاحة حالياً</p>
+        {!loading && !error && filteredTrips.length === 0 && (
+          <p className="text-center text-gray-400 text-sm py-10">
+            {trips.length === 0 ? "لا توجد رحلات متاحة حالياً" : "لا توجد نتائج تطابق البحث"}
+          </p>
         )}
-        {!loading && !error && trips.map((trip, index) => (
+        {!loading && !error && filteredTrips.map((trip, index) => (
           <div key={index} className="bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden">
             {/* Right: trip info */}
             <div className="p-4 flex-1 space-y-2 text-right">
@@ -170,24 +198,30 @@ export default function CreateTripPage() {
             {/* Left: Actions */}
             <div className="bg-gray-50 p-3 flex flex-col gap-2 justify-center items-stretch w-36 shrink-0 border-r border-gray-100">
               <span className="text-xs font-semibold text-gray-400 text-center mb-1">الإجراءات</span>
+              {canEdit && (
               <button
                 onClick={() => setAssignModal({ open: true, tripId: trip._raw?.id })}
                 className="flex items-center justify-center gap-1 bg-[#474747] text-white text-xs py-1.5 px-2 rounded hover:bg-black transition-colors">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                 إسناد رحلة
               </button>
+              )}
+              {canPublish && (
               <button onClick={() => toggleActive(index)} className="flex items-center justify-center gap-1.5 text-xs py-1.5 px-2 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
                 <div className={`w-7 h-4 rounded-full flex items-center px-0.5 transition-colors ${trip.active ? "bg-amber-500" : "bg-gray-300"}`}>
                   <div className={`w-3 h-3 bg-white rounded-full shadow transition-transform ${trip.active ? "translate-x-3" : "translate-x-0"}`}/>
                 </div>
                 <span>{trip.active ? "متاح" : "موقوف"}</span>
               </button>
+              )}
+              {canEdit && (
               <button
                 onClick={() => setEditModal({ open: true, trip: trip._raw })}
                 className="flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 px-2 rounded hover:bg-gray-50 transition-colors">
                 <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 تعديل
               </button>
+              )}
               <button
                 type="button"
                 onClick={() => setChatModal({
@@ -199,10 +233,12 @@ export default function CreateTripPage() {
                 <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 المحادثات
               </button>
+              {canDelete && (
               <button onClick={() => deleteTrip(index)} className="flex items-center justify-center gap-1 bg-white border border-red-200 text-red-400 text-xs py-1.5 px-2 rounded hover:bg-red-50 transition-colors">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 حذف
               </button>
+              )}
             </div>
           </div>
         ))}

@@ -1,4 +1,5 @@
-import { ROLE_LABELS, STATUS_LABELS } from "../../lib/roles.js";
+import { STATUS_LABELS } from "../../lib/roles.js";
+import { getRoleLabel } from "../../lib/roleUtils.js";
 
 function fmtDate(ts) {
   if (!ts) return "—";
@@ -30,26 +31,40 @@ function StatusBadge({ status }) {
   );
 }
 
-function RoleBadge({ role }) {
+function RoleBadge({ role, firebaseRoles = [] }) {
   return (
     <span className="inline-flex text-xs bg-amber-50 text-[#9C6402] border border-amber-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-      {ROLE_LABELS[role] ?? role}
+      {getRoleLabel(role, firebaseRoles)}
     </span>
   );
 }
 
-function UserActions({ user, onEdit, onDelete, onStatusChange, onResetPassword, compact = false }) {
+function UserActions({ user, onEdit, onDelete, onStatusChange, onResetPassword, compact = false, apiOnly = false, canEdit = true, canDelete = true }) {
   const btnBase =
     "text-xs font-medium rounded-xl border transition-colors disabled:opacity-60";
   const btnClass = compact
     ? `${btnBase} flex-1 min-w-0 px-2 py-2 text-center`
     : `${btnBase} px-2.5 py-1.5 whitespace-nowrap`;
 
+  if (apiOnly) {
+    return (
+      <div className={compact ? "w-full" : "flex flex-wrap items-center gap-1.5 justify-start"}>
+        {canEdit && (
+        <button type="button" onClick={() => onEdit(user)} className={`${btnClass} text-gray-700 border-gray-200 hover:bg-gray-50 w-full sm:w-auto`}>
+          تعديل
+        </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={compact ? "grid grid-cols-2 gap-2 w-full" : "flex flex-wrap items-center gap-1.5 justify-start"}>
+      {canEdit && (
       <button type="button" onClick={() => onEdit(user)} className={`${btnClass} text-gray-700 border-gray-200 hover:bg-gray-50`}>
         تعديل
       </button>
+      )}
       {user.status === "active" ? (
         <button
           type="button"
@@ -74,6 +89,7 @@ function UserActions({ user, onEdit, onDelete, onStatusChange, onResetPassword, 
       >
         {compact ? "إعادة تعيين" : "إعادة تعيين"}
       </button>
+      {canDelete && (
       <button
         type="button"
         onClick={() => onDelete(user)}
@@ -81,11 +97,12 @@ function UserActions({ user, onEdit, onDelete, onStatusChange, onResetPassword, 
       >
         حذف
       </button>
+      )}
     </div>
   );
 }
 
-function UserCard({ user, ...actions }) {
+function UserCard({ user, firebaseRoles, ...actions }) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3">
@@ -104,7 +121,7 @@ function UserCard({ user, ...actions }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 mt-3">
-        <RoleBadge role={user.role} />
+        <RoleBadge role={user.role} firebaseRoles={firebaseRoles} />
         <StatusBadge status={user.status} />
       </div>
 
@@ -127,8 +144,12 @@ export default function UserTable({
   onStatusChange,
   onResetPassword,
   loading = false,
+  apiOnly = false,
+  firebaseRoles = [],
+  canEdit = true,
+  canDelete = true,
 }) {
-  const actions = { onEdit, onDelete, onStatusChange, onResetPassword };
+  const actions = { onEdit, onDelete, onStatusChange, onResetPassword, apiOnly, canEdit, canDelete };
 
   if (loading) {
     return (
@@ -152,7 +173,7 @@ export default function UserTable({
       {/* Mobile / tablet cards */}
       <div className="md:hidden p-3 sm:p-4 space-y-3">
         {users.map((u) => (
-          <UserCard key={u.uid ?? u.id} user={u} {...actions} />
+          <UserCard key={u.uid ?? u.id} user={u} firebaseRoles={firebaseRoles} {...actions} />
         ))}
       </div>
 
@@ -186,7 +207,7 @@ export default function UserTable({
                   </div>
                 </td>
                 <td className="px-4 py-3.5">
-                  <RoleBadge role={u.role} />
+                  <RoleBadge role={u.role} firebaseRoles={firebaseRoles} />
                 </td>
                 <td className="px-4 py-3.5 text-xs text-gray-500 hidden lg:table-cell max-w-[120px] truncate">
                   {u.department || "—"}

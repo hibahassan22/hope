@@ -10,6 +10,9 @@ import EditTripModal from "./EditTripModal";
 import TripNoteModal from "./trip-details/TripNoteModal";
 import TripRefundModal from "./trip-details/TripRefundModal";
 import TripChangeStatusModal from "./trip-details/TripChangeStatusModal";
+import TripPassengerModal from "./trip-details/TripPassengerModal";
+import { requestDeletePassenger } from "../services/tripService.js";
+import { ConfirmModal } from "./ui/AppModal";
 
 const API_BASE = "/api";
 
@@ -50,8 +53,14 @@ function statusBadgeClass(status) {
   return "border-gray-300 text-gray-600 bg-gray-50";
 }
 
+function getTripPassengers(trip) {
+  if (Array.isArray(trip?.passengers) && trip.passengers.length) return trip.passengers;
+  if (Array.isArray(trip?.trip_passengers) && trip.trip_passengers.length) return trip.trip_passengers;
+  if (trip?.customer) return [trip.customer];
+  return [];
+}
+
 function buildPayments(trip) {
-  if (Array.isArray(trip?.payments) && trip.payments.length) return trip.payments;
   if (Array.isArray(trip?.payment_history) && trip.payment_history.length) return trip.payment_history;
 
   const paid = Number(trip?.amount_paid ?? 0);
@@ -198,6 +207,9 @@ export default function TripDetailsPage() {
   const [showStatus, setShowStatus] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showAddPassenger, setShowAddPassenger] = useState(false);
+  const [deletePassenger, setDeletePassenger] = useState(null);
+  const [deletingPassenger, setDeletingPassenger] = useState(false);
 
   const fetchTrip = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -243,6 +255,22 @@ export default function TripDetailsPage() {
     toast.success("تمت إضافة الملاحظة محلياً");
   };
 
+  const handleDeletePassenger = async () => {
+    if (!deletePassenger) return;
+    const customerId = deletePassenger.customer_id ?? deletePassenger.id;
+    setDeletingPassenger(true);
+    try {
+      await requestDeletePassenger({ tripId, customerId });
+      toast.success("تم إرسال طلب حذف الراكب");
+      setDeletePassenger(null);
+      await fetchTrip({ silent: true });
+    } catch (err) {
+      toast.error(err.message || "فشل حذف الراكب");
+    } finally {
+      setDeletingPassenger(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-24" dir="rtl">
@@ -270,7 +298,8 @@ export default function TripDetailsPage() {
   const dName = driverName(trip.driver);
   const customerName = trip.customer?.name ?? trip.customer_name ?? trip.client_name ?? "—";
   const customerPhone = trip.customer?.phone ?? trip.customer_phone ?? "—";
-  const operatingDays = Array.isArray(trip.days) ? trip.days : [];
+  const operatingDays = Array.isArray(trip.days) ? trip.days : (trip.operation_days ?? []);
+  const tripPassengers = getTripPassengers(trip);
   const primaryEmployee = Array.isArray(trip.sales) && trip.sales[0]?.name ? trip.sales[0].name : "—";
   const assistedBy = trip.assisted_by ?? "—";
 
@@ -361,6 +390,44 @@ export default function TripDetailsPage() {
                   <FieldCol label="وقت الانطلاق:" value={trip.departure_time ?? trip.start_time} />
                   <FieldCol label="وقت العودة:" value={trip.return_time ?? trip.end_time} />
                 </div>
+              </div>
+              <hr className="border-gray-200" />
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassenger(true)}
+                    className="inline-flex items-center gap-1.5 bg-[#4a4746] text-white text-[11px] font-bold px-3.5 py-2 rounded-xl hover:bg-[#383534] transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> إضافة راكب
+                  </button>
+                  <SectionTitle>الركاب ({tripPassengers.length || trip.passengers_count || 0})</SectionTitle>
+                </div>
+                {tripPassengers.length === 0 ? (
+                  <p className="text-gray-400 text-xs text-right">لا يوجد ركاب مسجلون — أضف راكباً من العملاء</p>
+                ) : (
+                  <div className="space-y-2">
+                    {tripPassengers.map((p, i) => {
+                      const cid = p.customer_id ?? p.id;
+                      const name = p.full_name ?? p.name ?? `راكب ${i + 1}`;
+                      return (
+                        <div key={cid ?? i} className="flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setDeletePassenger(p)}
+                            className="text-[11px] text-red-500 hover:underline shrink-0"
+                          >
+                            حذف
+                          </button>
+                          <div className="text-right flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+                            <p className="text-[11px] text-gray-400">معرّف العميل: {cid ?? "—"}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <hr className="border-gray-200" />
               <div>
@@ -471,6 +538,25 @@ export default function TripDetailsPage() {
       <AddPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} tripId={tripId} onSuccess={() => fetchTrip({ silent: true })} />
       <EditTripModal isOpen={showEdit} onClose={() => setShowEdit(false)} trip={trip}
         onSuccess={applyTripUpdate} />
+      <TripPassengerModal
+        isOpen={showAddPassenger}
+        onClose={() => setShowAddPassenger(false)}
+        tripId={tripId}
+        onSuccess={() => {
+          toast.success("تم إرسال طلب إضافة الراكب");
+          fetchTrip({ silent: true });
+        }}
+      />
+      <ConfirmModal
+        isOpen={!!deletePassenger}
+        onClose={() => setDeletePassenger(null)}
+        onConfirm={handleDeletePassenger}
+        title="حذف راكب من الرحلة"
+        message={`هل تريد إرسال طلب حذف «${deletePassenger?.full_name ?? deletePassenger?.name ?? "الراكب"}» من الرحلة؟`}
+        confirmLabel="تأكيد الحذف"
+        isSubmitting={deletingPassenger}
+        variant="danger"
+      />
     </div>
   );
 }

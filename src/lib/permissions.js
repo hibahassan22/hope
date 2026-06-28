@@ -30,6 +30,28 @@ export const PERMISSIONS = {
   SUPPORT_EDIT: "Support.Edit",
   REWARDS_READ: "Rewards.Read",
   REWARDS_EDIT: "Rewards.Edit",
+  REWARDS_SETTINGS_READ: "Rewards.Settings.Read",
+  REWARDS_CODE_CREATE: "Rewards.Code.Create",
+  REWARDS_CODE_EDIT: "Rewards.Code.Edit",
+  REWARDS_CODE_DELETE: "Rewards.Code.Delete",
+  REWARDS_CODE_TOGGLE: "Rewards.Code.Toggle",
+  CLIENTS_EXPORT: "Clients.Export",
+  DRIVERS_SUSPEND: "Drivers.Suspend",
+  TRIPS_EXPORT: "Trips.Export",
+  TRIPS_CANCEL: "Trips.Cancel",
+  TRIPS_ADS_READ: "Trips.Ads.Read",
+  TRIPS_ADS_CREATE: "Trips.Ads.Create",
+  TRIPS_ADS_EDIT: "Trips.Ads.Edit",
+  TRIPS_ADS_DELETE: "Trips.Ads.Delete",
+  TRIPS_ADS_PUBLISH: "Trips.Ads.Publish",
+  SUPPORT_TICKETS_READ: "Support.Tickets.Read",
+  SUPPORT_TICKETS_REPLY: "Support.Tickets.Reply",
+  SUPPORT_TICKETS_CLOSE: "Support.Tickets.Close",
+  SUPPORT_TICKETS_DELETE: "Support.Tickets.Delete",
+  SUPPORT_TICKETS_ESCALATE: "Support.Tickets.Escalate",
+  NOTIFICATIONS_EDIT: "Notifications.Edit",
+  NOTIFICATIONS_DELETE: "Notifications.Delete",
+  NOTIFICATIONS_SCHEDULE: "Notifications.Schedule",
   ACTIVITY_READ: "Activity.Read",
   SETTINGS_READ: "Settings.Read",
   SETTINGS_EDIT: "Settings.Edit",
@@ -69,6 +91,28 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.SUPPORT_EDIT]: "إدارة الدعم",
   [PERMISSIONS.REWARDS_READ]: "عرض المكافآت",
   [PERMISSIONS.REWARDS_EDIT]: "تعديل المكافآت",
+  [PERMISSIONS.REWARDS_SETTINGS_READ]: "عرض الإعدادات",
+  [PERMISSIONS.REWARDS_CODE_CREATE]: "إضافة كود ترويجي",
+  [PERMISSIONS.REWARDS_CODE_EDIT]: "تعديل الكود",
+  [PERMISSIONS.REWARDS_CODE_DELETE]: "حذف الكود",
+  [PERMISSIONS.REWARDS_CODE_TOGGLE]: "تفعيل/إيقاف الكود",
+  [PERMISSIONS.CLIENTS_EXPORT]: "تصدير البيانات",
+  [PERMISSIONS.DRIVERS_SUSPEND]: "تعليق السائق",
+  [PERMISSIONS.TRIPS_EXPORT]: "تصدير التقارير",
+  [PERMISSIONS.TRIPS_CANCEL]: "إلغاء رحلة",
+  [PERMISSIONS.TRIPS_ADS_READ]: "عرض الإعلانات",
+  [PERMISSIONS.TRIPS_ADS_CREATE]: "إضافة إعلان",
+  [PERMISSIONS.TRIPS_ADS_EDIT]: "تعديل إعلان",
+  [PERMISSIONS.TRIPS_ADS_DELETE]: "حذف إعلان",
+  [PERMISSIONS.TRIPS_ADS_PUBLISH]: "نشر الإعلان",
+  [PERMISSIONS.SUPPORT_TICKETS_READ]: "عرض التذاكر",
+  [PERMISSIONS.SUPPORT_TICKETS_REPLY]: "الرد على التذاكر",
+  [PERMISSIONS.SUPPORT_TICKETS_CLOSE]: "إغلاق التذكرة",
+  [PERMISSIONS.SUPPORT_TICKETS_DELETE]: "حذف التذكرة",
+  [PERMISSIONS.SUPPORT_TICKETS_ESCALATE]: "تصعيد التذكرة",
+  [PERMISSIONS.NOTIFICATIONS_EDIT]: "تعديل إشعار",
+  [PERMISSIONS.NOTIFICATIONS_DELETE]: "حذف إشعار",
+  [PERMISSIONS.NOTIFICATIONS_SCHEDULE]: "جدولة إشعار",
   [PERMISSIONS.ACTIVITY_READ]: "عرض سجل النشاط",
   [PERMISSIONS.SETTINGS_READ]: "عرض الإعدادات",
   [PERMISSIONS.SETTINGS_EDIT]: "تعديل الإعدادات",
@@ -83,12 +127,12 @@ export const PERMISSION_LABELS = {
 export const ROUTE_PERMISSIONS = {
   "/dashboard": [PERMISSIONS.DASHBOARD_READ],
   "/trips": [PERMISSIONS.TRIPS_READ],
-  "/create-trip": [PERMISSIONS.TRIPS_CREATE],
-  "/new-trip": [PERMISSIONS.TRIPS_CREATE],
+  "/create-trip": [PERMISSIONS.TRIPS_ADS_READ, PERMISSIONS.TRIPS_CREATE, PERMISSIONS.TRIPS_ADS_CREATE],
+  "/new-trip": [PERMISSIONS.TRIPS_ADS_CREATE, PERMISSIONS.TRIPS_CREATE],
   "/clients": [PERMISSIONS.CLIENTS_READ],
   "/drivers": [PERMISSIONS.DRIVERS_READ],
-  "/rewards": [PERMISSIONS.REWARDS_READ],
-  "/support": [PERMISSIONS.SUPPORT_READ],
+  "/rewards": [PERMISSIONS.REWARDS_SETTINGS_READ, PERMISSIONS.REWARDS_READ],
+  "/support": [PERMISSIONS.SUPPORT_TICKETS_READ, PERMISSIONS.SUPPORT_READ],
   "/notifications": [PERMISSIONS.NOTIFICATIONS_READ],
   "/alerts": [PERMISSIONS.NOTIFICATIONS_READ],
   "/activity": [PERMISSIONS.ACTIVITY_READ],
@@ -107,10 +151,50 @@ export const ADMIN_ONLY_ROUTES = [
   "/system",
 ];
 
+/** توسيع الصلاحيات القديمة إلى صلاحيات فرعية */
+export function expandPermissions(permissions = []) {
+  if (!permissions?.length) return [];
+  if (permissions.includes("*")) return ["*"];
+
+  const set = new Set(permissions);
+  const add = (...keys) => keys.forEach((k) => set.add(k));
+
+  if (set.has(PERMISSIONS.REWARDS_READ)) {
+    add(PERMISSIONS.REWARDS_SETTINGS_READ);
+  }
+  if (set.has(PERMISSIONS.REWARDS_EDIT)) {
+    add(
+      PERMISSIONS.REWARDS_SETTINGS_READ,
+      PERMISSIONS.REWARDS_CODE_CREATE,
+      PERMISSIONS.REWARDS_CODE_EDIT,
+      PERMISSIONS.REWARDS_CODE_DELETE,
+      PERMISSIONS.REWARDS_CODE_TOGGLE
+    );
+  }
+  if (set.has(PERMISSIONS.SUPPORT_READ)) add(PERMISSIONS.SUPPORT_TICKETS_READ);
+  if (set.has(PERMISSIONS.SUPPORT_EDIT)) {
+    add(
+      PERMISSIONS.SUPPORT_TICKETS_READ,
+      PERMISSIONS.SUPPORT_TICKETS_REPLY,
+      PERMISSIONS.SUPPORT_TICKETS_CLOSE,
+      PERMISSIONS.SUPPORT_TICKETS_ESCALATE
+    );
+  }
+  if (set.has(PERMISSIONS.TRIPS_READ)) add(PERMISSIONS.TRIPS_ADS_READ);
+  if (set.has(PERMISSIONS.TRIPS_CREATE)) add(PERMISSIONS.TRIPS_ADS_CREATE, PERMISSIONS.TRIPS_ADS_PUBLISH);
+  if (set.has(PERMISSIONS.TRIPS_EDIT)) add(PERMISSIONS.TRIPS_ADS_EDIT);
+  if (set.has(PERMISSIONS.TRIPS_DELETE)) add(PERMISSIONS.TRIPS_CANCEL, PERMISSIONS.TRIPS_ADS_DELETE);
+  if (set.has(PERMISSIONS.NOTIFICATIONS_SEND)) add(PERMISSIONS.NOTIFICATIONS_SCHEDULE);
+
+  return [...set];
+}
+
 export function hasPermission(userPermissions, permission) {
   if (!permission) return true;
-  if (!userPermissions?.length) return false;
-  return userPermissions.includes(permission);
+  const expanded = expandPermissions(userPermissions);
+  if (!expanded.length) return false;
+  if (expanded.includes("*")) return true;
+  return expanded.includes(permission);
 }
 
 export function hasAnyPermission(userPermissions, permissions = []) {

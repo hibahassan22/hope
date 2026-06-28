@@ -40,7 +40,24 @@ const db = admin.firestore();
 const authAdmin = admin.auth();
 
 const VALID_STATUSES = new Set(["active", "inactive", "suspended", "blocked", "disabled"]);
-const VALID_ROLES = new Set(["admin", "support", "accountant", "supervisor"]);
+
+async function roleExists(roleId) {
+  if (!roleId || typeof roleId !== "string") return false;
+  const snap = await db.collection("roles").doc(roleId).get();
+  return snap.exists;
+}
+
+async function assertValidRole(roleId, res) {
+  if (!roleId) {
+    res.status(400).json({ message: "الدور مطلوب" });
+    return false;
+  }
+  if (!(await roleExists(roleId))) {
+    res.status(400).json({ message: `الدور «${roleId}» غير موجود — أنشئه من صفحة الصلاحيات أولاً` });
+    return false;
+  }
+  return true;
+}
 
 async function verifyAdmin(req, res, next) {
   try {
@@ -137,7 +154,7 @@ app.post("/api/admin/create-user", verifyAdmin, async (req, res) => {
     if (!password || password.length < 8) {
       return res.status(400).json({ code: "WEAK_PASSWORD", message: "كلمة المرور ضعيفة" });
     }
-    if (!VALID_ROLES.has(role)) return res.status(400).json({ message: "دور غير صالح" });
+    if (!(await assertValidRole(role, res))) return;
     if (!VALID_STATUSES.has(status)) return res.status(400).json({ code: "INVALID_STATUS", message: "حالة غير صالحة" });
 
     let userRecord;
@@ -158,7 +175,7 @@ app.post("/api/admin/create-user", verifyAdmin, async (req, res) => {
     const uid = userRecord.uid;
     const now = admin.firestore.FieldValue.serverTimestamp();
 
-    await authAdmin.setCustomUserClaims(uid, { role, permissions });
+    await authAdmin.setCustomUserClaims(uid, { role, permissions: role === "admin" ? ["*"] : [] });
 
     const userDoc = {
       uid,
@@ -167,7 +184,7 @@ app.post("/api/admin/create-user", verifyAdmin, async (req, res) => {
       phone: phone.trim(),
       department: department.trim(),
       role,
-      permissions,
+      permissions: role === "admin" ? ["*"] : [],
       status,
       avatar: "",
       createdBy: req.adminUid,
@@ -210,10 +227,10 @@ app.put("/api/admin/users/:uid", verifyAdmin, async (req, res) => {
     if (phone !== undefined) updates.phone = phone.trim();
     if (department !== undefined) updates.department = department.trim();
     if (role !== undefined) {
-      if (!VALID_ROLES.has(role)) return res.status(400).json({ message: "دور غير صالح" });
+      if (!(await assertValidRole(role, res))) return;
       updates.role = role;
+      updates.permissions = role === "admin" ? ["*"] : [];
     }
-    if (permissions !== undefined) updates.permissions = permissions;
     if (status !== undefined) {
       if (!VALID_STATUSES.has(status)) return res.status(400).json({ code: "INVALID_STATUS" });
       updates.status = status;
@@ -223,7 +240,7 @@ app.put("/api/admin/users/:uid", verifyAdmin, async (req, res) => {
     if (fullName) await authAdmin.updateUser(uid, { displayName: fullName.trim() });
 
     const finalRole = updates.role ?? snap.data().role;
-    const finalPerms = updates.permissions ?? snap.data().permissions ?? [];
+    const finalPerms = finalRole === "admin" ? ["*"] : [];
     await authAdmin.setCustomUserClaims(uid, { role: finalRole, permissions: finalPerms });
 
     await ref.update(updates);
@@ -310,6 +327,39 @@ app.post("/api/admin/users/:uid/reset-password", verifyAdmin, async (req, res) =
     return res.json({ ok: true, resetLink: link });
   } catch (err) {
     console.error("[reset-password]", err);
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+/** POST /api/admin/users/sync-role-by-email — ربط دور الموظف بحساب Firebase بنفس البريد */
+app.post("/api/admin/users/sync-role-by-email", verifyAdmin, async (req, res) => {
+  try {
+    const { email, role } = req.body ?? {};
+    const normalized = String(email ?? "").trim().toLowerCase();
+    if (!validateEmail(normalized)) {
+      return res.status(400).json({ message: "بريد غير صالح" });
+    }
+    if (!(await assertValidRole(role, res))) return;
+
+    let authUser;
+    try {
+      authUser = await authAdmin.getUserByEmail(normalized);
+    } catch {
+      return res.status(404).json({ code: "USER_NOT_FOUND", message: "لا يوجد حساب Firebase بهذا البريد" });
+    }
+
+    const uid = authUser.uid;
+    const perms = role === "admin" ? ["*"] : [];
+    await authAdmin.setCustomUserClaims(uid, { role, permissions: perms });
+    await db.collection("users").doc(uid).set(
+      { role, permissions: perms, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    await writeActivity("sync_role_by_email", req.adminUid, uid, { role, email: normalized });
+    return res.json({ ok: true, uid });
+  } catch (err) {
+    console.error("[sync-role-by-email]", err);
     return res.status(500).json({ message: err.message });
   }
 });

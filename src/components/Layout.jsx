@@ -1,12 +1,13 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthContext } from "../context/AuthContext.jsx";
-import { NAV_ROLE_MAP, ROLE_LABELS } from "../lib/roles.js";
+import { usePermissions } from "../hooks/usePermissions.js";
 import { useUnreadCount } from "../lib/useUnreadCount";
 import { useChatUnreadCount, isChatDriverUnread, markChatDriverRead, syncChatUnreadFromDrivers } from "../lib/useChatUnread";
 import { subscribeNotifications, markAllAsRead, markAsRead, initNotificationsCollection, isNotificationUnread } from "../services/notifications";
 import PageTransition from "./PageTransition";
 import AppModal from "./ui/AppModal";
+import { useGlobalSearch, getSearchPlaceholder } from "../hooks/useGlobalSearch";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 const fmtDate = (ts) => { if (!ts) return ""; const d = ts?.toDate ? ts.toDate() : new Date(ts); const diff = Math.floor((Date.now()-d)/1000); if (diff<60) return "منذ لحظات"; if (diff<3600) return "منذ "+Math.floor(diff/60)+"د"; if (diff<86400) return "منذ "+Math.floor(diff/3600)+"س"; return d.toLocaleDateString("ar-EG"); };
@@ -277,24 +278,23 @@ function ChatModal({ isOpen, onClose, currentUser }) {
 export default function Layout({ children }) {
   const navigate    = useNavigate();
   const location    = useLocation();
-  const { user, signOut, role } = useAuthContext();
+  const { user, signOut, roleLabel } = useAuthContext();
   const [chatOpen,  setChatOpen]  = useState(false);
   const [bellOpen,  setBellOpen]  = useState(false);
   const unreadCount = useUnreadCount();
   const chatUnreadCount = useChatUnreadCount();
+  const { searchQuery, setSearchQuery } = useGlobalSearch();
+  const searchPlaceholder = getSearchPlaceholder(location.pathname);
 
   useEffect(() => { initNotificationsCollection(); }, []);
 
-  const navRole = role ?? user?.role ?? "admin";
+  const { isAdmin, canRoute } = usePermissions();
   const firstName = user?.firstName ?? user?.fullName?.split(" ")[0] ?? "";
   const lastName  = user?.lastName  ?? "";
   const email     = user?.email ?? "";
   const avatar    = user?.imageUrl;
 
-  const navItems = ALL_NAV.filter((item) => {
-    const allowed = NAV_ROLE_MAP[item.route];
-    return !allowed || allowed.includes(navRole);
-  });
+  const navItems = ALL_NAV.filter((item) => isAdmin || canRoute(item.route));
 
   return (
     <div className="flex h-screen bg-[#f0ede8] font-sans" dir="rtl">
@@ -353,7 +353,7 @@ export default function Layout({ children }) {
               <p className="text-white text-xs font-semibold truncate">{firstName} {lastName}</p>
               <p className="text-gray-500 text-[10px] truncate">{email}</p>
               <span className="inline-block mt-0.5 text-[9px] bg-[#c9a84c]/15 text-[#c9a84c] px-2 py-0.5 rounded-full border border-[#c9a84c]/20">
-                {ROLE_LABELS[navRole] ?? navRole}
+                {roleLabel}
               </span>
             </div>
           </div>
@@ -371,10 +371,16 @@ export default function Layout({ children }) {
         {/* Topbar */}
         <header className="bg-white border-b border-gray-200/80 px-6 py-3 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2.5 w-64 border border-gray-200">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2.5 w-64 border border-gray-200 focus-within:border-[#c9a84c]/40 focus-within:ring-2 focus-within:ring-[#c9a84c]/10 transition-all">
               <SearchIcon />
-              <input type="text" placeholder="ابحث هنا....."
-                className="bg-transparent text-sm outline-none w-full text-right placeholder-gray-400" dir="rtl" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="bg-transparent text-sm outline-none w-full text-right placeholder-gray-400"
+                dir="rtl"
+              />
             </div>
           </div>
           <div className="flex items-center gap-1.5">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 
@@ -138,7 +139,7 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
-  const [search, setSearch] = useState("");
+  const { searchQuery, setSearchQuery } = useGlobalSearch();
   const [actionLoading, setActionLoading] = useState(null);
 
   const fetchRequests = useCallback(async () => {
@@ -201,7 +202,7 @@ export default function ApprovalsPage() {
 
   const filtered = requests.filter((r) => {
     const matchStatus = statusFilter === "الكل" || r.status === statusFilter;
-    const q = search.trim();
+    const q = searchQuery.trim();
     const matchSearch =
       q === "" ||
       r.submittedBy.includes(q) ||
@@ -244,8 +245,8 @@ export default function ApprovalsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ابحث برقم الطلب أو الرحلة أو اسم الموظف..."
                 className="bg-transparent text-sm outline-none w-full placeholder-gray-300 text-right"
                 dir="rtl"

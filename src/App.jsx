@@ -4,6 +4,7 @@ import LoginPage from "./pages/Login/LoginPage";
 import ForgotPasswordPage from "./pages/Login/ForgotPasswordPage";
 import ChangePasswordPage from "./pages/Login/ChangePasswordPage";
 import Layout from "./components/Layout";
+import { SearchProvider } from "./context/SearchContext.jsx";
 import DashboardPage from "./components/DashboardPage";
 import TripsListPage from "./components/TripsListPage";
 import TripDetailsPage from "./components/TripDetailsPage";
@@ -26,7 +27,9 @@ import NotFoundPage from "./components/NotFoundPage";
 function AdminPage({ children }) {
   return (
     <ProtectedRoute>
-      <Layout>{children}</Layout>
+      <SearchProvider>
+        <Layout>{children}</Layout>
+      </SearchProvider>
     </ProtectedRoute>
   );
 }

@@ -1,20 +1,27 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuthContext } from "../context/AuthContext.jsx";
 import { useToast } from "../lib/toast.jsx";
-import UserForm from "./users/UserForm.jsx";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import SalesUserForm from "./users/SalesUserForm.jsx";
 import UserTable from "./users/UserTable.jsx";
-import AppModal, { ConfirmModal } from "./ui/AppModal";
+import AppModal from "./ui/AppModal";
 import {
-  subscribeUsers,
-  createUser,
-  updateUser,
-  deleteUser,
-  updateUserStatus,
-  resetUserPassword,
-  fetchRoles,
-  fetchDepartments,
-} from "../services/userService.js";
-import { ROLE_LABELS, STATUS_LABELS, USER_STATUSES } from "../lib/roles.js";
+  fetchSalesList,
+  salesRecordToUser,
+  filterSalesUsers,
+  createSalesRecord,
+  updateSalesRecord,
+  generateSalesId,
+  findSalesByEmail,
+  normalizeEmail,
+} from "../services/salesService.js";
+import { fetchStaffRolesMap, saveStaffRole, syncFirebaseUserRoleByEmail } from "../services/staffRoleService.js";
+import { subscribeRoles } from "../services/roleService.js";
+import { buildRoleOptions, getRoleLabel, getDefaultRoleId } from "../lib/roleUtils.js";
+import { validatePhone } from "../lib/phoneValidation.js";
+import { STATUS_LABELS, USER_STATUSES } from "../lib/roles.js";
 
 const PAGE_SIZE = 10;
 
@@ -39,53 +46,100 @@ function FilterSelect({ value, onChange, children }) {
 function UsersPageContent() {
   const { user: currentUser } = useAuthContext();
   const toast = useToast();
+  const { can } = usePermissions();
+  const canCreate = can(PERMISSIONS.USERS_CREATE);
+  const canEdit = can(PERMISSIONS.USERS_EDIT);
 
-  const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [salesUsers, setSalesUsers] = useState([]);
+  const [roleMap, setRoleMap] = useState({});
+  const [firebaseRoles, setFirebaseRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const [search, setSearch] = useState("");
+  const { searchQuery, setSearchQuery } = useGlobalSearch();
   const [filterRole, setFilterRole] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
 
-  useEffect(() => {
-    fetchRoles().then(setRoles).catch(() => {});
-    fetchDepartments().then(setDepartments).catch(() => {});
-  }, []);
-
-  useEffect(() => {
+  const loadSalesUsers = useCallback(async () => {
     setLoading(true);
-    const unsub = subscribeUsers(
-      (list) => {
-        setUsers(list);
-        setLoading(false);
-      },
-      { search, role: filterRole, status: filterStatus }
-    );
+    try {
+      const [list, roles] = await Promise.all([
+        fetchSalesList(),
+        fetchStaffRolesMap().catch(() => ({})),
+      ]);
+      setSalesUsers(list);
+      setRoleMap(roles);
+    } catch (err) {
+      toast.error(err.message || "فشل تحميل المستخدمين");
+      setSalesUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    const unsub = subscribeRoles(setFirebaseRoles);
+    loadSalesUsers();
     return unsub;
-  }, [search, filterRole, filterStatus]);
+  }, [loadSalesUsers]);
+
+  const roleOptions = useMemo(() => buildRoleOptions(firebaseRoles), [firebaseRoles]);
+
+  const users = useMemo(
+    () =>
+      filterSalesUsers(
+        salesUsers.map((sale) => salesRecordToUser(sale, roleMap[String(sale.id)])),
+        { search: searchQuery, role: filterRole, status: filterStatus }
+      ),
+    [salesUsers, roleMap, searchQuery, filterRole, filterStatus]
+  );
 
   const currentUserName = currentUser?.fullName ?? currentUser?.displayName ?? "مجهول";
-  const currentUserPosition = ROLE_LABELS[currentUser?.role] ?? "موظف";
+  const currentUserPosition = getRoleLabel(currentUser?.role, firebaseRoles);
 
   const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
   const paged = users.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleCreate = async (form) => {
+    const email = normalizeEmail(form.email);
+    const duplicate = findSalesByEmail(salesUsers, email);
+    if (duplicate) {
+      toast.error(
+        `البريد «${email}» مسجّل مسبقاً للموظف «${duplicate.name || duplicate.id}» — استخدم بريداً آخر`
+      );
+      return;
+    }
+
+    const phoneCheck = validatePhone(form.phone);
+    if (!phoneCheck.valid) {
+      toast.error(phoneCheck.message);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await createUser(form);
-      toast.success("تم إنشاء المستخدم بنجاح");
+      const id = generateSalesId();
+      await createSalesRecord({
+        id,
+        name: form.fullName,
+        phone: phoneCheck.normalized,
+        email: form.email,
+      });
+      try {
+        await saveStaffRole(id, form.role);
+        await syncFirebaseUserRoleByEmail(form.email, form.role).catch(() => {});
+      } catch (roleErr) {
+        toast.error(roleErr.message || "تم حفظ الموظف لكن فشل حفظ الدور");
+      }
+      toast.success("تم إضافة الموظف بنجاح");
       setShowCreate(false);
+      await loadSalesUsers();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "فشل إضافة الموظف");
     } finally {
       setSubmitting(false);
     }
@@ -93,69 +147,46 @@ function UsersPageContent() {
 
   const handleEdit = async (form) => {
     if (!editUser) return;
+
+    const phoneCheck = validatePhone(form.phone);
+    if (!phoneCheck.valid) {
+      toast.error(phoneCheck.message);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await updateUser(editUser.uid ?? editUser.id, {
-        fullName: form.fullName,
-        phone: form.phone,
-        department: form.department,
-        role: form.role,
-        permissions: form.permissions,
-        status: form.status,
+      const staffId = editUser.uid ?? editUser.id;
+      await updateSalesRecord(staffId, {
+        name: form.fullName,
+        phone: phoneCheck.normalized,
+        email: editUser.email,
       });
-      toast.success("تم تحديث المستخدم");
+      try {
+        await saveStaffRole(staffId, form.role);
+        await syncFirebaseUserRoleByEmail(editUser.email, form.role).catch(() => {});
+      } catch (roleErr) {
+        toast.error(roleErr.message || "تم تحديث البيانات لكن فشل حفظ الدور");
+      }
+      toast.success("تم تحديث بيانات الموظف");
       setEditUser(null);
+      await loadSalesUsers();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "فشل تحديث الموظف");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setSubmitting(true);
-    try {
-      await deleteUser(deleteTarget.uid ?? deleteTarget.id);
-      toast.success("تم حذف المستخدم");
-      setDeleteTarget(null);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleStatus = async (u, status) => {
-    try {
-      await updateUserStatus(u.uid ?? u.id, status);
-      toast.success(status === "active" ? "تم التفعيل" : "تم التعليق");
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleReset = async (u) => {
-    try {
-      const res = await resetUserPassword(u.uid ?? u.id);
-      toast.success("تم إنشاء رابط إعادة التعيين");
-      if (res.resetLink) window.prompt("رابط إعادة التعيين (انسخه وأرسله للمستخدم):", res.resetLink);
-    } catch (err) {
-      toast.error(err.message);
     }
   };
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-4 p-2 sm:p-4 lg:p-0" dir="rtl">
-      {/* Header */}
       <div className="bg-white rounded-xl px-4 sm:px-5 py-4 border border-gray-200/60 shadow-sm text-right">
         <h1 className="text-lg sm:text-xl font-bold text-[#c9a84c]">المستخدمين</h1>
         <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-          إدارة مستخدمي لوحة التحكم — إنشاء الحسابات للمدير فقط
+          إدارة موظفي خدمة العملاء من نظام المبيعات — <span className="font-mono">GET /api/sales</span>
         </p>
       </div>
 
-      {/* Current user */}
       <div className="bg-[#fffcf5] border border-amber-100 rounded-xl px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-xs text-gray-500">المستخدم الحالي</p>
         <div className="text-right sm:text-left">
@@ -166,26 +197,27 @@ function UsersPageContent() {
         </div>
       </div>
 
-      {/* Create user */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h2 className="text-sm font-bold text-gray-800 text-right order-2 sm:order-1">
-            إنشاء مستخدم جديد
+            إضافة موظف جديد
           </h2>
           <button
             type="button"
-            onClick={() => setShowCreate((v) => !v)}
-            className="w-full sm:w-auto order-1 sm:order-2 flex items-center justify-center gap-1.5 bg-[#4a4644] text-white text-sm font-bold px-4 py-2.5 rounded-xl hover:bg-black transition-colors"
+            onClick={() => canCreate && setShowCreate((v) => !v)}
+            disabled={!canCreate}
+            className="w-full sm:w-auto order-1 sm:order-2 flex items-center justify-center gap-1.5 bg-[#4a4644] text-white text-sm font-bold px-4 py-2.5 rounded-xl hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {showCreate ? "إخفاء النموذج" : "إضافة مستخدم"}
+            {showCreate ? "إخفاء النموذج" : "إضافة موظف"}
           </button>
         </div>
         {showCreate && (
           <div className="pt-2 border-t border-gray-50">
-            <UserForm
+            <SalesUserForm
               mode="create"
-              roles={roles}
-              departments={departments}
+              existingSales={salesUsers}
+              roles={roleOptions}
+              defaultRoleId={getDefaultRoleId(firebaseRoles)}
               onSubmit={handleCreate}
               loading={submitting}
             />
@@ -193,31 +225,29 @@ function UsersPageContent() {
         )}
       </div>
 
-      {/* Users list */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Filters */}
         <div className="px-3 sm:px-5 py-4 border-b border-gray-50 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h3 className="text-sm font-bold text-gray-800 text-right">
-              سجل المستخدمين
+              سجل الموظفين
               <span className="mr-2 text-xs font-normal text-gray-400">({users.length})</span>
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
             <input
-              value={search}
+              value={searchQuery}
               onChange={(e) => {
-                setSearch(e.target.value);
+                setSearchQuery(e.target.value);
                 setPage(1);
               }}
-              placeholder="بحث بالاسم أو البريد..."
+              placeholder="بحث بالاسم أو البريد أو الهاتف..."
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right focus:border-[#c9a84c] focus:outline-none sm:col-span-2 lg:col-span-1"
             />
             <FilterSelect value={filterRole} onChange={(v) => { setFilterRole(v); setPage(1); }}>
               <option value="">جميع الأدوار</option>
-              {Object.entries(ROLE_LABELS).map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
+              {roleOptions.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
               ))}
             </FilterSelect>
             <FilterSelect value={filterStatus} onChange={(v) => { setFilterStatus(v); setPage(1); }}>
@@ -232,10 +262,10 @@ function UsersPageContent() {
         <UserTable
           users={paged}
           loading={loading}
+          apiOnly
+          firebaseRoles={firebaseRoles}
           onEdit={setEditUser}
-          onDelete={setDeleteTarget}
-          onStatusChange={handleStatus}
-          onResetPassword={handleReset}
+          canEdit={canEdit}
         />
 
         {totalPages > 1 && (
@@ -274,38 +304,24 @@ function UsersPageContent() {
         )}
       </div>
 
-      {/* Edit modal */}
       <AppModal
         isOpen={!!editUser}
         onClose={() => setEditUser(null)}
-        title="تعديل المستخدم"
+        title="تعديل الموظف"
         isSubmitting={submitting}
         size="lg"
       >
         {editUser && (
-          <UserForm
+          <SalesUserForm
             mode="edit"
             initial={editUser}
-            roles={roles}
-            departments={departments}
+            roles={roleOptions}
             onSubmit={handleEdit}
             onCancel={() => setEditUser(null)}
             loading={submitting}
           />
         )}
       </AppModal>
-
-      {/* Delete modal */}
-      <ConfirmModal
-        isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title="تأكيد الحذف"
-        message={deleteTarget ? <>حذف <span className="font-bold text-gray-900">{deleteTarget.fullName}</span>؟</> : ""}
-        confirmLabel="حذف"
-        isSubmitting={submitting}
-        variant="danger"
-      />
     </div>
   );
 }

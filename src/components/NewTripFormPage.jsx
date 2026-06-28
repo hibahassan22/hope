@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AppModal, { modalInputClass } from "./ui/AppModal";
-
-const API_BASE = "/api";
+import { fetchSalesList } from "../services/salesService.js";
+import { createTripWithoutDriver } from "../services/tripService.js";
+import { fetchCustomersList } from "../services/customerService.js";
+import { buildTripCreatePayload } from "../lib/tripFormUtils.js";
 
 // ── Map Picker Modal (OpenStreetMap + Leaflet via CDN) ─────────────
 function MapPickerModal({ title, onClose, onConfirm }) {
@@ -688,10 +690,23 @@ export default function NewTripFormPage() {
   const [useMap,      setUseMap]      = useState(true);
   const [sameTime,    setSameTime]    = useState(true);
   const [riderCount,  setRiderCount]  = useState("5");
+  const [customers,   setCustomers]   = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [customersError, setCustomersError] = useState(null);
+  const [customerId,  setCustomerId]  = useState("");
   const [clientName,  setClientName]  = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [nationality, setNationality] = useState("سعودي");
   const [clientType,  setClientType]  = useState("");
   const [clientGender,setClientGender]= useState("");
+  const [fromCity,    setFromCity]    = useState("");
+  const [toCity,      setToCity]      = useState("");
+  const [departureTime, setDepartureTime] = useState("07:00");
+  const [returnTime,    setReturnTime]    = useState("");
+  const [transferMethod, setTransferMethod] = useState("نقدي");
+  const [bankName,       setBankName]       = useState("");
+  const [accountNumber,  setAccountNumber]  = useState("");
+  const [ourCommission,  setOurCommission]  = useState("");
   const [driverNat,   setDriverNat]   = useState("");
   const [driverGender,setDriverGender]= useState("");
   const [carSize,     setCarSize]     = useState("large");
@@ -704,11 +719,31 @@ export default function NewTripFormPage() {
   const toggleSale = (id) => setSelectedSales(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/sales`)
-      .then(r => r.json())
-      .then(json => setSalesList(Array.isArray(json) ? json : json.value ?? []))
-      .catch(() => {});
+    fetchSalesList()
+      .then(setSalesList)
+      .catch(() => setSalesList([]));
+    fetchCustomersList()
+      .then((list) => {
+        setCustomers(list);
+        setCustomersError(null);
+      })
+      .catch((err) => {
+        setCustomers([]);
+        setCustomersError(err.message || "فشل تحميل قائمة العملاء");
+      })
+      .finally(() => setCustomersLoading(false));
   }, []);
+
+  const handleCustomerSelect = (id) => {
+    setCustomerId(id);
+    const c = customers.find((x) => String(x.id) === String(id));
+    if (c) {
+      setClientName(c.name ?? c.full_name ?? "");
+      setClientPhone(c.phone ?? "");
+      setNationality(c.nationality ?? "سعودي");
+      setClientGender(c.gender ?? "");
+    }
+  };
 
   // ── Map picker ─────────────────────────────────────────────────
   const [mapTarget, setMapTarget] = useState(null); // "from" | "to"
@@ -733,30 +768,52 @@ export default function NewTripFormPage() {
   const [submitError, setSubmitError] = useState(null);
 
   const handleSubmit = async () => {
+    if (!customerId) {
+      setSubmitError("اختر العميل (الراكب الأساسي) من القائمة");
+      return;
+    }
+    if (!fromCoords || !toCoords) {
+      setSubmitError("حدد نقطة الانطلاق والوصول من الخريطة");
+      return;
+    }
+    if (!fromCity.trim() || !toCity.trim()) {
+      setSubmitError("أدخل اسم مكان الانطلاق والوصول");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const formData = new FormData();
-      formData.append("trip_date", dateFrom || new Date().toISOString().split("T")[0]);
-      formData.append("customer_phone", clientPhone);
-      formData.append("total_price", price || 0);
-      formData.append("trip_type", tripCard);
-      formData.append("trip_days_count", activeDays.length);
-      if (fromCoords) formData.append("from", `${fromCoords.lat},${fromCoords.lng}`);
-      if (toCoords)   formData.append("to",   `${toCoords.lat},${toCoords.lng}`);
-      selectedSales.forEach((id, i) => formData.append(`sales_ids[${i}]`, id));
-
-      const res = await fetch(`${API_BASE}/trips`, {
-        method: "POST",
-        body: formData,
+      const payload = buildTripCreatePayload({
+        passengers,
+        routeType,
+        direction,
+        subType,
+        activeDays,
+        dateFrom,
+        departureTime,
+        returnTime,
+        riderCount,
+        price,
+        notes,
+        fromCity,
+        toCity,
+        fromCoords,
+        toCoords,
+        selectedSales,
+        carSize,
+        customerId,
+        clientName,
+        nationality,
+        clientGender,
+        transferMethod,
+        bankName,
+        accountNumber,
+        ourCommission,
       });
 
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = json?.message || json?.error || `خطأ ${res.status}`;
-        throw new Error(msg);
-      }
-      navigate("/trips");
+      await createTripWithoutDriver(payload);
+      navigate("/create-trip");
     } catch (err) {
       setSubmitError(err.message);
     } finally {
@@ -854,6 +911,18 @@ export default function NewTripFormPage() {
           <div className="flex gap-2 flex-wrap justify-end">
             {DAYS.map(d => <DayBtn key={d.id} label={d.label} short={d.short} active={activeDays.includes(d.id)} onClick={() => toggleDay(d.id)} />)}
           </div>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Field label="وقت الانطلاق *">
+              <input type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none bg-white text-right" />
+            </Field>
+            {direction === "both" && (
+              <Field label="وقت العودة *">
+                <input type="time" value={returnTime} onChange={(e) => setReturnTime(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none bg-white text-right" />
+              </Field>
+            )}
+          </div>
         </div>
       </Section>
 
@@ -864,7 +933,15 @@ export default function NewTripFormPage() {
           <div className="space-y-3">
             <p className="text-xs text-gray-500 text-right">🔁 نقطة الانطلاق والنهاية</p>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="نقطة الوصول *">
+              <Field label="مكان الوصول *">
+                <Input placeholder="مثال: المدينة" value={toCity} onChange={(e) => setToCity(e.target.value)} />
+              </Field>
+              <Field label="مكان الانطلاق *">
+                <Input placeholder="مثال: الرياض" value={fromCity} onChange={(e) => setFromCity(e.target.value)} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="إحداثيات الوصول *">
                 <button
                   type="button"
                   onClick={() => setMapTarget("to")}
@@ -874,7 +951,7 @@ export default function NewTripFormPage() {
                   <span className="flex-1 text-right mr-2 truncate text-xs">{toLabel || "اختر من الخريطة"}</span>
                 </button>
               </Field>
-              <Field label="نقطة الانطلاق *">
+              <Field label="إحداثيات الانطلاق *">
                 <button
                   type="button"
                   onClick={() => setMapTarget("from")}
@@ -945,6 +1022,24 @@ export default function NewTripFormPage() {
         <Section title="بيانات العميل" sub="معلومات العميل الأساسية"
           icon={<svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}>
           <div className="space-y-3">
+            <Field label="الراكب الأساسي (من العملاء) *">
+              <Sel value={customerId} onChange={(e) => handleCustomerSelect(e.target.value)} disabled={customersLoading}>
+                <option value="">
+                  {customersLoading ? "جاري تحميل العملاء..." : customers.length ? "اختر العميل" : "لا يوجد عملاء — أضف من صفحة العملاء"}
+                </option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.phone || "بدون هاتف"}
+                  </option>
+                ))}
+              </Sel>
+              {customersError && (
+                <p className="text-[11px] text-red-600 text-right mt-1">{customersError}</p>
+              )}
+              {!customersLoading && !customersError && customers.length === 0 && (
+                <p className="text-[11px] text-amber-700 text-right mt-1">لا توجد عملاء في النظام. أضف عميلاً من صفحة العملاء أولاً.</p>
+              )}
+            </Field>
             {isGroup && (
               <Field label="عدد الركاب">
                 <Sel value={riderCount} onChange={e => setRiderCount(e.target.value)}>
@@ -953,9 +1048,12 @@ export default function NewTripFormPage() {
               </Field>
             )}
             <div className="grid grid-cols-2 gap-3">
-              <Field label="الهاتف (خدمة العملاء)"><Input placeholder="ادخل الهاتف" value={clientPhone} onChange={e => setClientPhone(e.target.value)} /></Field>
-              <Field label="الاسم (خدمة العملاء)"><Input placeholder="ادخل الاسم" value={clientName} onChange={e => setClientName(e.target.value)} /></Field>
+              <Field label="الهاتف"><Input placeholder="ادخل الهاتف" value={clientPhone} onChange={e => setClientPhone(e.target.value)} dir="ltr" /></Field>
+              <Field label="الاسم"><Input placeholder="ادخل الاسم" value={clientName} onChange={e => setClientName(e.target.value)} /></Field>
             </div>
+            <Field label="الجنسية">
+              <Input placeholder="سعودي" value={nationality} onChange={(e) => setNationality(e.target.value)} />
+            </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="جنس العميل"><Sel value={clientGender} onChange={e => setClientGender(e.target.value)}><option value="">اختر الجنس</option><option>ذكر</option><option>أنثى</option></Sel></Field>
               <Field label="تصنيف العميل"><Sel value={clientType} onChange={e => setClientType(e.target.value)}><option value="">اختر التصنيف</option><option>VIP</option><option>عادي</option></Sel></Field>
@@ -979,7 +1077,24 @@ export default function NewTripFormPage() {
               ))}
             </div>
           </Field>
-          <Field label="السعر المقترح للرحلة"><Input placeholder="ادخل السعر" value={price} onChange={e => setPrice(e.target.value)} type="number" /></Field>
+          <Field label="السعر المقترح للرحلة"><Input placeholder="ادخل السعر" value={price} onChange={e => setPrice(e.target.value)} type="number" min="0" /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="طريقة التحويل">
+              <Sel value={transferMethod} onChange={(e) => setTransferMethod(e.target.value)}>
+                <option value="نقدي">نقدي</option>
+                <option value="تحويل بنكي">تحويل بنكي</option>
+              </Sel>
+            </Field>
+            <Field label="عمولتنا">
+              <Input placeholder="0" value={ourCommission} onChange={(e) => setOurCommission(e.target.value)} type="number" min="0" />
+            </Field>
+          </div>
+          {transferMethod === "تحويل بنكي" && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="اسم البنك"><Input value={bankName} onChange={(e) => setBankName(e.target.value)} /></Field>
+              <Field label="رقم الحساب"><Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} dir="ltr" /></Field>
+            </div>
+          )}
           <Field label="ملحوظات الرحلة"><textarea rows="3" placeholder="ادخل اي ملاحظات اضافية" value={notes} onChange={e => setNotes(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none bg-white text-right resize-none placeholder-gray-300" /></Field>
         </div>
       </Section>

@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useToast } from "../lib/toast";
 import { useAuthContext } from "../context/AuthContext.jsx";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { filterByGlobalSearch } from "../lib/searchUtils";
 import AppModal, { ModalField, ModalActions, modalInputClass, ConfirmModal } from "./ui/AppModal";
 
 const API_BASE = "https://drivo1.elmoroj.com";
@@ -69,6 +73,9 @@ const AddClientModal = ({ isOpen, onClose, onAddClient }) => {
 
 // ======= Client Details Modal (عرض التفاصيل) =======
 const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote }) => {
+  const { can } = usePermissions();
+  const canEdit = can(PERMISSIONS.CLIENTS_EDIT);
+  const canExport = can(PERMISSIONS.CLIENTS_EXPORT);
   const [activeTab, setActiveTab] = useState("basic"); // basic | notes | trips
   const [editedClient, setEditedClient] = useState(null);
   const [noteText, setNoteText] = useState("");
@@ -85,6 +92,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
 
   const handleSaveChanges = async (e) => {
     e.preventDefault();
+    if (!canEdit) return;
     const success = await onUpdateClient(editedClient);
     if (success) onClose();
   };
@@ -135,6 +143,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                   value={editedClient.name}
                   onChange={(e) => setEditedClient({ ...editedClient, name: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2 text-gray-700 text-sm focus:outline-none focus:border-amber-500 text-right"
+                  readOnly={!canEdit}
                 />
               </div>
 
@@ -146,6 +155,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                   onChange={(e) => setEditedClient({ ...editedClient, phone: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2 text-gray-700 text-sm focus:outline-none focus:border-amber-500 text-left"
                   dir="ltr"
+                  readOnly={!canEdit}
                 />
               </div>
 
@@ -156,6 +166,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                   value={editedClient.address}
                   onChange={(e) => setEditedClient({ ...editedClient, address: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2 text-gray-700 text-sm focus:outline-none focus:border-amber-500 text-right"
+                  readOnly={!canEdit}
                 />
               </div>
 
@@ -165,6 +176,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                   value={editedClient.gender}
                   onChange={(e) => setEditedClient({ ...editedClient, gender: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2 text-gray-700 text-sm focus:outline-none focus:border-amber-500 text-right bg-white"
+                  disabled={!canEdit}
                 >
                   <option value="ذكر">ذكر</option>
                   <option value="أنثى">أنثى</option>
@@ -179,8 +191,8 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                     {[1, 2, 3, 4, 5].map((star) => (
                       <svg
                         key={star}
-                        onClick={() => setEditedClient({ ...editedClient, rating: star })}
-                        className={`w-5 h-5 cursor-pointer ${star <= Math.round(editedClient.rating) ? "fill-amber-400 text-amber-400" : "text-gray-200 fill-gray-200"}`}
+                        onClick={() => canEdit && setEditedClient({ ...editedClient, rating: star })}
+                        className={`w-5 h-5 ${canEdit ? "cursor-pointer" : "cursor-default"} ${star <= Math.round(editedClient.rating) ? "fill-amber-400 text-amber-400" : "text-gray-200 fill-gray-200"}`}
                         viewBox="0 0 20 20"
                       >
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -191,9 +203,11 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                 </div>
               </div>
 
-              <button type="submit" className="w-full mt-6 bg-[#4A4A4A] text-white font-medium py-3 rounded-xl hover:bg-[#3d3d3d] transition-colors text-center shadow-sm">
-                حفظ التغييرات
-              </button>
+              {canEdit && (
+                <button type="submit" className="w-full mt-6 bg-[#4A4A4A] text-white font-medium py-3 rounded-xl hover:bg-[#3d3d3d] transition-colors text-center shadow-sm">
+                  حفظ التغييرات
+                </button>
+              )}
             </form>
           )}
 
@@ -263,6 +277,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                       </span>
                     </div>
                   ))}
+                  {canExport && (
                   <button
                     onClick={() => {
                       const rows = editedClient.tripHistory.map(t =>
@@ -280,6 +295,7 @@ const ClientDetailsModal = ({ isOpen, onClose, client, onUpdateClient, onAddNote
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     تصدير
                   </button>
+                  )}
                   <button className="w-full border border-gray-200 text-gray-500 text-xs py-2 rounded-xl hover:bg-gray-50 transition-colors text-center">
                     عرض المزيد ({editedClient.trips.total} رحلة)
                   </button>
@@ -310,6 +326,23 @@ export default function ClientsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const toast = useToast();
   const { user } = useAuthContext();
+  const { can } = usePermissions();
+  const canCreate = can(PERMISSIONS.CLIENTS_CREATE);
+  const canEdit = can(PERMISSIONS.CLIENTS_EDIT);
+  const canDelete = can(PERMISSIONS.CLIENTS_DELETE);
+  const { searchQuery } = useGlobalSearch();
+
+  const filteredClients = useMemo(
+    () => filterByGlobalSearch(clients, searchQuery, (c) => [
+      c.name,
+      c.phone,
+      c.address,
+      c.nationality,
+      c.status,
+      c.id,
+    ]),
+    [clients, searchQuery]
+  );
 
   const mapApiNote = (note) => ({
     id: note.id?.toString() || `${Date.now()}-${Math.random()}`,
@@ -600,8 +633,9 @@ export default function ClientsPage() {
           </h2>
           <p className="text-xs md:text-sm opacity-90 mt-1">عدد العملاء المسجلين لدينا</p>
           <button 
-            onClick={() => setIsAddModalOpen(true)}
-            className="mt-4 inline-flex items-center gap-2 bg-white text-[#b88121] text-xs md:text-sm font-semibold px-5 py-2 rounded-full shadow hover:bg-amber-50 transition-colors"
+            onClick={() => canCreate && setIsAddModalOpen(true)}
+            disabled={!canCreate}
+            className="mt-4 inline-flex items-center gap-2 bg-white text-[#b88121] text-xs md:text-sm font-semibold px-5 py-2 rounded-full shadow hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -613,12 +647,12 @@ export default function ClientsPage() {
 
       {/* Client Cards */}
       <div className="space-y-4">
-        {!loading && !error && clients.length === 0 && (
+        {!loading && !error && filteredClients.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">
-            لا يوجد عملاء مسجّلون حالياً
+            {clients.length === 0 ? "لا يوجد عملاء مسجّلون حالياً" : "لا توجد نتائج تطابق البحث"}
           </div>
         )}
-        {clients.map((client) => (
+        {filteredClients.map((client) => (
           <div key={client.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-right">
 
             {/* Top row — الاسم يمين، الحالة يسار */}
@@ -689,26 +723,30 @@ export default function ClientsPage() {
                 </svg>
                 عرض التفاصيل
               </button>
-              <button 
-                onClick={() => handleOpenDetails(client)}
-                className="p-2 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 transition-colors"
-                title="تعديل"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => handleDelete(client.id, client.name)}
-                className="p-2 border border-red-200 text-red-400 rounded-lg hover:bg-red-50 transition-colors"
-                title="حذف"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+              {canEdit && (
+                <button 
+                  onClick={() => handleOpenDetails(client)}
+                  className="p-2 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="تعديل"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => handleDelete(client.id, client.name)}
+                  className="p-2 border border-red-200 text-red-400 rounded-lg hover:bg-red-50 transition-colors"
+                  title="حذف"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
             </div>
 
           </div>

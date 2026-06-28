@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "../lib/toast";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
 import AppModal, { ModalField, ModalActions, modalInputClass, ConfirmModal } from "./ui/AppModal";
 import {
   sendDriverNotification,
@@ -194,7 +197,7 @@ export default function NotificationsPage() {
   const [error,   setError]   = useState("");
 
   // Filters & search
-  const [search,      setSearch]      = useState("");
+  const { searchQuery, setSearchQuery } = useGlobalSearch();
   const [filterStatus, setFilterStatus] = useState("all");  // all | مرسل | مجدول
   const [filterType,   setFilterType]   = useState("all");
 
@@ -205,6 +208,11 @@ export default function NotificationsPage() {
   const [sendOpen,   setSendOpen]   = useState(false);
   const [detailItem, setDetailItem] = useState(null);
   const [deleteId,   setDeleteId]   = useState(null);
+  const { can } = usePermissions();
+  const canSend = can(PERMISSIONS.NOTIFICATIONS_SEND);
+  const canEdit = can(PERMISSIONS.NOTIFICATIONS_EDIT);
+  const canDelete = can(PERMISSIONS.NOTIFICATIONS_DELETE);
+  const canSchedule = can(PERMISSIONS.NOTIFICATIONS_SCHEDULE);
 
   // ── Fetch ──────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -234,8 +242,8 @@ export default function NotificationsPage() {
   const filtered = all.filter(n => {
     if (filterStatus !== "all" && n.status !== filterStatus) return false;
     if (filterType   !== "all" && n.type   !== filterType)   return false;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
       if (!n.title.toLowerCase().includes(q) && !n.content.toLowerCase().includes(q)) return false;
     }
     return true;
@@ -246,7 +254,7 @@ export default function NotificationsPage() {
   const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [search, filterStatus, filterType]);
+  useEffect(() => { setPage(1); }, [searchQuery, filterStatus, filterType]);
 
   // ── Stats ──────────────────────────────────────────────────
   const sentCount  = all.filter(n => n.status === "مرسل").length;
@@ -257,8 +265,8 @@ export default function NotificationsPage() {
 
       {/* ── Header bar ── */}
       <div className="bg-white rounded-2xl px-6 py-4 flex items-center justify-between shadow-sm border border-gray-100">
-        <button onClick={() => setSendOpen(true)}
-          className="flex items-center gap-2 bg-[#c9a84c] hover:bg-[#b8943f] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm">
+        <button onClick={() => canSend && setSendOpen(true)} disabled={!canSend}
+          className="flex items-center gap-2 bg-[#c9a84c] hover:bg-[#b8943f] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -296,7 +304,7 @@ export default function NotificationsPage() {
       <div className="bg-white rounded-2xl px-5 py-4 shadow-sm border border-gray-100 flex flex-wrap items-center gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
-          <input value={search} onChange={e => setSearch(e.target.value)}
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             placeholder="ابحث بالعنوان أو المحتوى..."
             className="w-full border border-gray-200 rounded-xl pl-4 pr-9 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none text-right placeholder-gray-300" />
           <svg className="w-4 h-4 text-gray-400 absolute right-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -427,7 +435,7 @@ export default function NotificationsPage() {
                       </svg>
                     </button>
 
-                    {/* إعادة إرسال */}
+                    {canEdit && (
                     <button onClick={() => handleResend(n)} title="إعادة إرسال"
                       className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -435,8 +443,9 @@ export default function NotificationsPage() {
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                     </button>
+                    )}
 
-                    {/* حذف */}
+                    {canDelete && (
                     <button onClick={() => setDeleteId(n.id)} title="حذف"
                       className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -444,6 +453,7 @@ export default function NotificationsPage() {
                           d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
+                    )}
                   </div>
 
                 </div>

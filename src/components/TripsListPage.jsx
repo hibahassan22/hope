@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
     Plus,
     RefreshCw,
@@ -22,6 +22,10 @@ import { Link, useLocation } from 'react-router-dom';
 import AddPaymentModal from './AddPaymentModal';
 import EditTripModal from './EditTripModal';
 import AppModal, { ModalField, ModalActions, modalInputClass } from './ui/AppModal';
+import { useGlobalSearch } from '../hooks/useGlobalSearch';
+import { filterByGlobalSearch } from '../lib/searchUtils';
+import { usePermissions } from '../hooks/usePermissions.js';
+import { PERMISSIONS } from '../lib/permissions.js';
 
 const API_BASE = "/api";
 
@@ -120,6 +124,29 @@ const TripsLog = () => {
     const [trips, setTrips] = useState([]);
     const [tripsLoading, setTripsLoading] = useState(false);
     const [tripsError, setTripsError] = useState(null);
+    const { searchQuery } = useGlobalSearch();
+    const { can } = usePermissions();
+    const canEdit = can(PERMISSIONS.TRIPS_EDIT);
+    const canExport = can(PERMISSIONS.TRIPS_EXPORT);
+
+    const filteredTrips = useMemo(
+        () => filterByGlobalSearch(trips, searchQuery, (trip) => {
+            const driverName = trip.driver ? `${trip.driver.name} ${trip.driver.last_name ?? ''}`.trim() : '';
+            const salesNames = trip.sales?.map((s) => s.name).join(' ') ?? '';
+            return [
+                trip.id,
+                trip.from,
+                trip.to,
+                trip.trip_status,
+                trip.trip_type,
+                trip.region,
+                driverName,
+                salesNames,
+                trip.total_price,
+            ];
+        }),
+        [trips, searchQuery]
+    );
 
     // جلب الرحلات من API
     const fetchTrips = async ({ silent = false } = {}) => {
@@ -229,6 +256,7 @@ const TripsLog = () => {
                         <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${tripsLoading ? 'animate-spin' : ''}`} />
                         تحديث
                     </button>
+                    {canExport && (
                     <button
                         onClick={handlePrint}
                         className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
@@ -236,6 +264,7 @@ const TripsLog = () => {
                         <Download className="w-3.5 h-3.5 text-gray-500" />
                         تصدير
                     </button>
+                    )}
                 </div>
 
             </div>
@@ -283,13 +312,14 @@ const TripsLog = () => {
                     </div>
                 )}
 
-                {/* Empty */}
-                {!tripsLoading && !tripsError && trips.length === 0 && (
-                    <p className="text-center text-gray-400 text-sm py-12">لا توجد رحلات بعد</p>
+                {!tripsLoading && !tripsError && filteredTrips.length === 0 && (
+                    <p className="text-center text-gray-400 text-sm py-12">
+                        {trips.length === 0 ? "لا توجد رحلات بعد" : "لا توجد نتائج تطابق البحث"}
+                    </p>
                 )}
 
                 {/* Trip cards */}
-                {!tripsLoading && trips.map((trip, index) => {
+                {!tripsLoading && filteredTrips.map((trip, index) => {
                     // map API fields → display values
                     const tripId   = `#${trip.id}`;
                     const status   = trip.trip_status ?? '—';
@@ -366,6 +396,8 @@ const TripsLog = () => {
                             <div className="bg-gray-50/50 p-4 border-l border-gray-100 flex flex-col gap-2 justify-center w-full md:w-44 text-center">
                                 <span className="text-xs font-semibold text-gray-400 mb-1 block">الإجراءات</span>
 
+                                {canEdit && (
+                                <>
                                 <button
                                     onClick={() => { setSelectedTripId(trip.id); setIsPaymentModalOpen(true); }}
                                     className="flex items-center justify-center gap-1 bg-[#474747] text-white text-xs py-1.5 px-3 rounded hover:bg-black transition-colors"
@@ -380,19 +412,21 @@ const TripsLog = () => {
                                     <RefreshCw className="w-3.5 h-3.5 text-gray-400" /> تغيير الحالة
                                 </button>
 
-                                <Link
-                                    to={`/trips/${trip.id}`}
-                                    className="flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 px-3 rounded hover:bg-gray-50 transition-colors no-underline"
-                                >
-                                    <Eye className="w-3.5 h-3.5 text-gray-400" /> تفاصيل
-                                </Link>
-
                                 <button
                                     onClick={() => handleEditClick(trip)}
                                     className="flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 px-3 rounded hover:bg-gray-50 transition-colors"
                                 >
                                     <Edit2 className="w-3.5 h-3.5 text-gray-400" /> تعديل
                                 </button>
+                                </>
+                                )}
+
+                                <Link
+                                    to={`/trips/${trip.id}`}
+                                    className="flex items-center justify-center gap-1 bg-white border border-gray-300 text-gray-700 text-xs py-1.5 px-3 rounded hover:bg-gray-50 transition-colors no-underline"
+                                >
+                                    <Eye className="w-3.5 h-3.5 text-gray-400" /> تفاصيل
+                                </Link>
                             </div>
                         </div>
                     );

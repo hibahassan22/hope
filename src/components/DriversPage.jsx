@@ -1,11 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useToast } from "../lib/toast";
 import AppModal, { ModalField, ModalActions, modalInputClass, ConfirmModal } from "./ui/AppModal";
 import DriverDetailsView from "./drivers/DriverDetailsView";
 import AssignTripModal from "./AssignTripModal";
 import { normalizeDriverMedia } from "../lib/driverMedia";
 import { useDriverStatuses } from "../hooks/useDriverStatuses";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
 import { updateDriverStatus, sendDriverNotification } from "../lib/driverStatuses";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { filterByGlobalSearch } from "../lib/searchUtils";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 const DRIVER_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -53,14 +57,18 @@ const Spinner = () => (
 );
 
 // ── Action Icons ──────────────────────────────────────────────
-const ActionIcons = ({ onDelete, onEdit, onView }) => (
+const ActionIcons = ({ onDelete, onEdit, onView, canDelete = true, canEdit = true }) => (
   <div className="flex items-center gap-1.5">
+    {canDelete && (
     <button onClick={onDelete} className="p-1 text-red-400 hover:text-red-600" title="حذف">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
     </button>
+    )}
+    {canEdit && (
     <button onClick={onEdit} className="p-1 text-gray-400 hover:text-blue-600" title="تعديل">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
     </button>
+    )}
     <button onClick={onView} className="p-1 text-gray-400 hover:text-gray-600" title="عرض">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
     </button>
@@ -635,6 +643,28 @@ export default function DriversPage() {
   const closeGlobalModal = () => setModalState({ type: null, driver: null });
   const toast = useToast();
   const { statusLabel, statusColor, statusIdForAction } = useDriverStatuses();
+  const { searchQuery } = useGlobalSearch();
+  const { can } = usePermissions();
+  const canCreate = can(PERMISSIONS.DRIVERS_CREATE);
+  const canEdit = can(PERMISSIONS.DRIVERS_EDIT);
+  const canDelete = can(PERMISSIONS.DRIVERS_DELETE);
+
+  const filteredDrivers = useMemo(
+    () => filterByGlobalSearch(drivers, searchQuery, (d) => [
+      d.name,
+      d.last_name,
+      d.phone,
+      d.address,
+      d.car_type,
+      d.id,
+      statusLabel(d.status),
+    ]),
+    [drivers, searchQuery, statusLabel]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   const fetchDrivers = useCallback(() => {
     setLoading(true);
@@ -659,8 +689,8 @@ export default function DriversPage() {
     closeGlobalModal();
   };
 
-  const totalPages = Math.max(1, Math.ceil(drivers.length / ITEMS_PER_PAGE));
-  const paginated = drivers.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredDrivers.length / ITEMS_PER_PAGE));
+  const paginated = filteredDrivers.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
 
   const handleDriverUpdated = useCallback((updated) => {
     if (!updated) return;
@@ -705,9 +735,9 @@ export default function DriversPage() {
           <img src="/path_to_your_image.png" alt="" className="h-full w-full object-contain object-bottom drop-shadow-md"/>
         </div>
         <div className="z-10 text-white text-right">
-          <h2 className="text-5xl font-extrabold">{drivers.length} <span className="text-2xl font-normal">سائق</span></h2>
+          <h2 className="text-5xl font-extrabold">{filteredDrivers.length} <span className="text-2xl font-normal">سائق</span></h2>
           <p className="text-sm opacity-80 mt-1">عدد السائقين المسجلين</p>
-          <button onClick={()=>setModalState({type:"add",driver:null})} className="mt-4 flex items-center gap-2 bg-white text-[#b88121] text-sm font-semibold px-5 py-2 rounded-full shadow hover:bg-amber-50 transition-colors">
+          <button onClick={()=>canCreate && setModalState({type:"add",driver:null})} disabled={!canCreate} className="mt-4 flex items-center gap-2 bg-white text-[#b88121] text-sm font-semibold px-5 py-2 rounded-full shadow hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             إضافة سائق جديد
           </button>
@@ -718,6 +748,8 @@ export default function DriversPage() {
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         {loading ? <Spinner/> : error ? (
           <p className="text-center text-red-500 text-sm py-10">{error}</p>
+        ) : paginated.length === 0 ? (
+          <p className="text-center text-gray-400 text-sm py-10">لا توجد نتائج تطابق البحث</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-right">
@@ -741,6 +773,8 @@ export default function DriversPage() {
                     <td className="px-4 py-3.5"><ProgressBar value={driver.profile_completion||0}/></td>
                     <td className="px-4 py-3.5">
                       <ActionIcons
+                        canDelete={canDelete}
+                        canEdit={canEdit}
                         onDelete={()=>setModalState({type:"delete",driver})}
                         onEdit={()=>setModalState({type:"edit",driver})}
                         onView={()=>setSelectedDriver(driver)}

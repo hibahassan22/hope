@@ -1,5 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { filterByGlobalSearch } from "../lib/searchUtils";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
 import AppModal, { ModalField, modalInputClass, ConfirmModal } from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
@@ -142,6 +146,18 @@ export default function RewardsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [saveMsg, setSaveMsg] = useState("");
+  const { searchQuery } = useGlobalSearch();
+  const { can } = usePermissions();
+  const canViewSettings = can(PERMISSIONS.REWARDS_SETTINGS_READ);
+  const canCreateCode = can(PERMISSIONS.REWARDS_CODE_CREATE);
+  const canEditCode = can(PERMISSIONS.REWARDS_CODE_EDIT);
+  const canDeleteCode = can(PERMISSIONS.REWARDS_CODE_DELETE);
+  const canViewCodes = canViewSettings || canCreateCode || canEditCode || canDeleteCode || can(PERMISSIONS.REWARDS_CODE_TOGGLE);
+
+  const filteredCodes = useMemo(
+    () => filterByGlobalSearch(codes, searchQuery, (c) => [c.code, c.type, c.value, c.status]),
+    [codes, searchQuery]
+  );
 
   async function saveSettings() {
     const payload = {
@@ -239,6 +255,8 @@ export default function RewardsPage() {
         </div>
 
         {/* 1. مكافأة التطبيق */}
+        {canViewSettings && (
+        <>
         <SectionCard iconBg="bg-[#c9a84c]" title="مكافأة تحميل التطبيق" subtitle="مكافأة ترحيبية للسائقين الجدد"
           icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>}>
           <div className="flex items-center justify-between bg-[#f8f7f2] px-5 py-4 rounded-xl">
@@ -309,18 +327,37 @@ export default function RewardsPage() {
           </div>
         </SectionCard>
 
-        {/* 5. الأكواد الترويجية */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">          <div className="flex items-center justify-between">
+        {/* زر حفظ الإعدادات */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+          {saveMsg && (
+            <span className="text-sm font-semibold text-emerald-600">{saveMsg}</span>
+          )}
+          {!saveMsg && <span/>}
+          <button
+            onClick={saveSettings}
+            className="bg-[#c9a84c] hover:bg-[#b8943f] text-white font-bold px-8 py-3 rounded-xl text-sm transition-colors shadow-sm"
+          >
+            حفظ الاعدادات
+          </button>
+        </div>
+        </>
+        )}
+
+        {canViewCodes && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
                 <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
               </div>
               <div className="text-right"><h3 className="text-[15px] font-bold text-gray-800">الأكواد الترويجية</h3><p className="text-xs text-gray-400 mt-1">إدارة الأكواد الترويجية للسائقين</p></div>
             </div>
+            {canCreateCode && (
             <button onClick={openAdd} className="flex items-center gap-1.5 bg-[#c9a84c] hover:bg-[#b8943f] text-white text-xs px-5 py-2.5 rounded-xl transition-colors shadow-sm font-bold">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
               إضافة كود جديد
             </button>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-gray-100">
@@ -333,7 +370,7 @@ export default function RewardsPage() {
                 </tr>
               </thead>
               <tbody>
-                {codes.map(c=>(
+                {filteredCodes.map(c=>(
                   <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/60 transition-colors">
                     <td className="px-5 py-4 font-mono text-xs text-amber-600 font-bold">{c.code}</td>
                     <td className="px-5 py-4"><span className={`text-[10px] px-3 py-1.5 rounded-md font-bold ${typeColor[c.type]||"bg-gray-100 text-gray-600"}`}>{c.type}</span></td>
@@ -352,12 +389,16 @@ export default function RewardsPage() {
                     <td className="px-5 py-4"><span className="bg-[#e4faed] text-[#21a654] text-[10px] px-3 py-1.5 rounded-md font-bold">{c.status}</span></td>
                     <td className="px-5 py-4">
                       <div className="flex gap-2 justify-end">
+                        {canEditCode && (
                         <button onClick={()=>openEdit(c)} className="text-gray-400 hover:text-amber-500 bg-white border border-gray-200 p-1.5 rounded-md shadow-sm">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                         </button>
+                        )}
+                        {canDeleteCode && (
                         <button onClick={()=>setDeleteConfirm({open:true,id:c.id,code:c.code})} className="text-red-400 hover:text-red-600 bg-white border border-gray-200 p-1.5 rounded-md shadow-sm">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -366,20 +407,7 @@ export default function RewardsPage() {
             </table>
           </div>
         </div>
-
-        {/* زر حفظ الإعدادات */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
-          {saveMsg && (
-            <span className="text-sm font-semibold text-emerald-600">{saveMsg}</span>
-          )}
-          {!saveMsg && <span/>}
-          <button
-            onClick={saveSettings}
-            className="bg-[#c9a84c] hover:bg-[#b8943f] text-white font-bold px-8 py-3 rounded-xl text-sm transition-colors shadow-sm"
-          >
-            حفظ الاعدادات
-          </button>
-        </div>
+        )}
 
       </div>
 

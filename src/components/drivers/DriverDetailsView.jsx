@@ -10,6 +10,8 @@ import {
   normalizeDriverMedia,
   getDriverAvatarUrl,
 } from "../../lib/driverMedia";
+import { usePermissions } from "../../hooks/usePermissions.js";
+import { PERMISSIONS } from "../../lib/permissions.js";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 
@@ -482,6 +484,10 @@ export default function DriverDetailsView({
   tripsRefreshKey = 0,
 }) {
   const [activeTab, setActiveTab] = useState("personal");
+  const { can } = usePermissions();
+  const canEdit = can(PERMISSIONS.DRIVERS_EDIT);
+  const canDelete = can(PERMISSIONS.DRIVERS_DELETE);
+  const canSuspend = can(PERMISSIONS.DRIVERS_SUSPEND);
 
   const d = normalizeDriverMedia(driver);
   const fullName = [d?.name, d?.last_name].filter(Boolean).join(" ");
@@ -514,12 +520,22 @@ export default function DriverDetailsView({
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
           <button type="button" onClick={() => onOpenModal("alert")} className="bg-blue-600 text-white px-3 py-2 rounded-xl">إرسال تنبيه</button>
+          {canSuspend && (
+          <>
           <button type="button" onClick={() => onOpenModal("pause")} className="bg-amber-500 text-white px-3 py-2 rounded-xl">إيقاف مؤقت</button>
           <button type="button" onClick={() => onOpenModal("freeze")} className="bg-blue-400 text-white px-3 py-2 rounded-xl">تجميد</button>
           <button type="button" onClick={() => onOpenModal("block")} className="bg-red-600 text-white px-3 py-2 rounded-xl">حظر نهائي</button>
+          </>
+          )}
+          {canEdit && (
           <button type="button" onClick={() => onEditRequest(d)} className="border border-gray-200 text-gray-600 px-3 py-2 rounded-xl">تعديل</button>
+          )}
+          {canDelete && (
           <button type="button" onClick={() => onDeleteRequest(d)} className="border border-red-200 text-red-500 px-3 py-2 rounded-xl">حذف</button>
+          )}
+          {canEdit && (
           <button type="button" onClick={() => onOpenModal("assignTrip")} className="bg-neutral-800 text-white px-3 py-2 rounded-xl">+ إسناد رحلة</button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">

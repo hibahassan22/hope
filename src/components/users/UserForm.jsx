@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import RoleSelector, { StatusSelector } from "./RoleSelector.jsx";
 import PermissionSelector from "./PermissionSelector.jsx";
 import { ROLES } from "../../lib/roles.js";
+import { isSalesLinkedRole } from "../../services/salesService.js";
 
 const inputCls =
   "w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-[#c9a84c] focus:outline-none bg-white text-right placeholder-gray-300";
@@ -133,6 +134,11 @@ export default function UserForm({
         <div className="space-y-1.5">
           <label className="text-xs text-gray-500 block text-right">الدور</label>
           <RoleSelector value={form.role} onChange={(v) => set("role", v)} roles={roles} />
+          {isSalesLinkedRole(form.role) && (
+            <p className="text-[11px] text-amber-700 text-right leading-relaxed">
+              الدور يُحفظ في Firebase. عند الإنشاء يُسجَّل الموظف في نظام المبيعات بنفس معرّف Firebase (uid).
+            </p>
+          )}
         </div>
         <div className="space-y-1.5">
           <label className="text-xs text-gray-500 block text-right">الحالة</label>

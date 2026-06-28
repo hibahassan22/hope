@@ -59,12 +59,10 @@ export default function TripChatModal({ isOpen, onClose, tripId, tripLabel }) {
 
   const [messages, setMessages] = useState([]);
   const [drivers, setDrivers] = useState([]);
-  const [sales, setSales] = useState([]);
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [search, setSearch] = useState("");
 
   const myId = user?.uid ?? "";
 
@@ -76,37 +74,19 @@ export default function TripChatModal({ isOpen, onClose, tripId, tripLabel }) {
     return map;
   }, [drivers]);
 
-  const salesMap = useMemo(() => {
-    const map = new Map();
-    sales.forEach((s) => {
-      map.set(String(s.id), s);
-      if (s.uid) map.set(String(s.uid), s);
-    });
-    if (myId) {
-      map.set(myId, {
-        id: myId,
-        name: user?.displayName || user?.fullName || "خدمة العملاء",
-      });
-    }
-    return map;
-  }, [sales, myId, user]);
-
   const loadChatData = useCallback(async () => {
     if (!tripId) return;
     setLoading(true);
     try {
-      const [msgs, driversRes, salesRes] = await Promise.all([
+      const [msgs, driversRes] = await Promise.all([
         fetchTripMessages(tripId),
         fetch(`${API_BASE}/drivers`, { headers: { Accept: "application/json" } }).then((r) => r.json()),
-        fetch(`${API_BASE}/sales`, { headers: { Accept: "application/json" } }).then((r) => r.json()),
       ]);
 
       const driverList = Array.isArray(driversRes) ? driversRes : driversRes.data ?? driversRes.drivers ?? [];
-      const salesList = Array.isArray(salesRes) ? salesRes : salesRes.data ?? salesRes.sales ?? [];
 
       setMessages(msgs);
       setDrivers(driverList);
-      setSales(salesList);
 
       const driverIds = new Set(driverList.map((d) => String(d.id)));
       const involvedDriverIds = new Set();
@@ -130,7 +110,6 @@ export default function TripChatModal({ isOpen, onClose, tripId, tripLabel }) {
   useEffect(() => {
     if (!isOpen) return;
     setInputText("");
-    setSearch("");
     loadChatData();
   }, [isOpen, loadChatData]);
 
@@ -148,17 +127,9 @@ export default function TripChatModal({ isOpen, onClose, tripId, tripLabel }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, selectedDriverId]);
 
-  const getPersonLabel = useCallback(
-    (id) => {
-      const key = String(id);
-      const driver = driverMap.get(key);
-      if (driver) return personName(driver) || `سائق ${key.slice(0, 6)}`;
-      const sale = salesMap.get(key);
-      if (sale) return sale.name || "خدمة العملاء";
-      if (key === myId) return user?.displayName || "أنت";
-      return key.slice(0, 8);
-    },
-    [driverMap, salesMap, myId, user]
+  const isDriverId = useCallback(
+    (id) => driverMap.has(String(id)),
+    [driverMap]
   );
 
   const driverOptions = useMemo(() => {
@@ -169,41 +140,24 @@ export default function TripChatModal({ isOpen, onClose, tripId, tripLabel }) {
       if (driverIds.has(String(m.receiver_id))) involved.add(String(m.receiver_id));
     });
 
-    const list = drivers.filter((d) => {
-      const id = String(d.id);
-      const name = personName(d) || "";
-      const matchesSearch = !search || name.includes(search) || id.includes(search);
-      return matchesSearch && (involved.has(id) || !involved.size);
-    });
-
     if (involved.size) {
-      const involvedDrivers = drivers.filter((d) => involved.has(String(d.id)));
-      const filtered = involvedDrivers.filter((d) => {
-        const name = personName(d) || "";
-        return !search || name.includes(search) || String(d.id).includes(search);
-      });
-      return filtered.length ? filtered : list;
+      return drivers.filter((d) => involved.has(String(d.id)));
     }
-
-    return list;
-  }, [drivers, messages, search]);
+    return drivers;
+  }, [drivers, messages]);
 
   const threadMessages = useMemo(() => {
     if (!selectedDriverId) return [];
     const driverId = String(selectedDriverId);
-    const isSalesSide = (id) => String(id) === myId || salesMap.has(String(id));
 
     return messages
       .filter((m) => {
         const sender = String(m.sender_id);
         const receiver = String(m.receiver_id);
-        return (
-          (sender === driverId && isSalesSide(receiver)) ||
-          (receiver === driverId && isSalesSide(sender))
-        );
+        return sender === driverId || receiver === driverId;
       })
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  }, [messages, selectedDriverId, myId, salesMap]);
+  }, [messages, selectedDriverId]);
 
   const handleSend = async () => {
     if (!inputText.trim() || !selectedDriverId || !myId) {
@@ -236,115 +190,113 @@ export default function TripChatModal({ isOpen, onClose, tripId, tripLabel }) {
       onClose={onClose}
       title={`محادثة الرحلة #${tripId}`}
       subtitle={tripLabel}
-      size="xl"
+      size="lg"
     >
-      <div className="flex h-[520px] -mx-1 overflow-hidden rounded-2xl border border-gray-100" dir="rtl">
-        {/* قائمة السائقين */}
-        <div className="w-64 shrink-0 border-l border-gray-100 bg-[#faf7f0] flex flex-col">
-          <div className="px-3 py-3 border-b border-amber-100 bg-gradient-to-b from-[#9C6402] to-[#b8943f]">
-            <p className="text-white text-xs font-bold mb-2">السائقون</p>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث..."
-              className="w-full rounded-xl bg-white/20 border border-white/20 px-3 py-1.5 text-xs text-white placeholder-white/60 outline-none"
-            />
+      <div className="flex flex-col h-[520px] -mx-1 overflow-hidden rounded-2xl border border-gray-200" dir="rtl">
+        {/* هيدر واتساب */}
+        <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-[#075e54] text-white">
+          <div className="w-10 h-10 rounded-full bg-[#128c7e] flex items-center justify-center text-sm font-bold shrink-0">
+            {(personName(selectedDriver) || "؟")[0]}
           </div>
-          <div className="flex-1 overflow-y-auto">
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <div className="w-6 h-6 border-2 border-[#c9a84c] border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : driverOptions.length === 0 ? (
-              <p className="text-center text-xs text-gray-400 py-6">لا يوجد سائقون</p>
+          <div className="flex-1 min-w-0">
+            {driverOptions.length > 1 ? (
+              <select
+                value={selectedDriverId}
+                onChange={(e) => setSelectedDriverId(e.target.value)}
+                className="w-full bg-transparent text-sm font-bold outline-none cursor-pointer truncate"
+              >
+                {driverOptions.map((d) => (
+                  <option key={d.id} value={d.id} className="text-gray-900">
+                    {personName(d)}
+                  </option>
+                ))}
+              </select>
             ) : (
-              driverOptions.map((d) => {
-                const id = String(d.id);
-                const active = id === String(selectedDriverId);
-                const lastMsg = [...messages]
-                  .reverse()
-                  .find((m) => String(m.sender_id) === id || String(m.receiver_id) === id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setSelectedDriverId(id)}
-                    className={`w-full text-right px-3 py-3 border-b border-amber-50 transition-colors ${
-                      active ? "bg-[#c9a84c]/10 border-r-2 border-r-[#c9a84c]" : "hover:bg-amber-50/60"
-                    }`}
-                  >
-                    <p className="text-xs font-bold text-gray-800 truncate">{personName(d)}</p>
-                    <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                      {lastMsg?.message || d.phone || "—"}
-                    </p>
-                  </button>
-                );
-              })
+              <p className="text-sm font-bold truncate">{selectedDriver ? personName(selectedDriver) : "السائق"}</p>
             )}
+            <p className="text-[11px] text-white/70 truncate">
+              {selectedDriver?.phone || "محادثة الرحلة"}
+            </p>
           </div>
         </div>
 
-        {/* نافذة المحادثة */}
-        <div className="flex-1 flex flex-col bg-[#f8f6f2] min-w-0">
-          <div className="px-4 py-3 bg-white border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-800">
-              {selectedDriver ? personName(selectedDriver) : "اختر سائقاً"}
-            </p>
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              {selectedDriver?.phone || "محادثة حول الرحلة المعروضة"}
-            </p>
-          </div>
+        {/* منطقة الرسائل — واتساب */}
+        <div
+          className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5"
+          style={{
+            backgroundColor: "#e5ddd5",
+            backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c3bc' fill-opacity='0.18'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+          }}
+        >
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-7 h-7 border-2 border-[#075e54] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : !selectedDriverId ? (
+            <p className="text-center text-sm text-gray-500 py-10 bg-white/60 rounded-xl mx-4 px-4 py-3">لا يوجد سائق للمحادثة</p>
+          ) : threadMessages.length === 0 ? (
+            <p className="text-center text-sm text-gray-500 py-10 bg-white/60 rounded-xl mx-4 px-4 py-3">لا توجد رسائل — ابدأ المحادثة</p>
+          ) : (
+            threadMessages.map((m, i) => {
+              const isOutgoing = !isDriverId(m.sender_id);
+              const prev = threadMessages[i - 1];
+              const showDate = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {!selectedDriverId ? (
-              <p className="text-center text-sm text-gray-400 py-10">اختر سائقاً لعرض المحادثة</p>
-            ) : threadMessages.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-10">لا توجد رسائل بعد — ابدأ المحادثة</p>
-            ) : (
-              threadMessages.map((m) => {
-                const isMe = String(m.sender_id) === myId;
-                return (
-                  <div key={m.id} className={`flex ${isMe ? "justify-start" : "justify-end"}`}>
-                    <div className={`max-w-[75%] ${isMe ? "items-start" : "items-end"} flex flex-col gap-0.5`}>
-                      <span className="text-[10px] text-gray-400 px-1">{getPersonLabel(m.sender_id)}</span>
-                      <div
-                        className={`px-3.5 py-2 rounded-2xl text-sm shadow-sm ${
-                          isMe
-                            ? "bg-gradient-to-br from-[#9C6402] to-[#c9a84c] text-white rounded-bl-sm"
-                            : "bg-white text-gray-800 border border-amber-100 rounded-br-sm"
-                        }`}
-                      >
-                        {m.message}
+              return (
+                <div key={m.id}>
+                  {showDate && (
+                    <div className="flex justify-center my-3">
+                      <span className="text-[11px] text-gray-600 bg-white/90 shadow-sm px-3 py-1 rounded-lg">
+                        {new Date(m.created_at).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  )}
+                  <div className={`flex mb-1 ${isOutgoing ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`relative max-w-[78%] px-3 pt-2 pb-1 shadow-sm text-sm leading-relaxed ${
+                        isOutgoing
+                          ? "bg-[#d9fdd3] text-gray-900 rounded-2xl rounded-tl-sm"
+                          : "bg-white text-gray-900 rounded-2xl rounded-tr-sm"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap break-words text-right">{m.message}</p>
+                      <div className={`flex items-center gap-1 mt-0.5 ${isOutgoing ? "justify-start" : "justify-end"}`}>
+                        <span className="text-[10px] text-gray-400">{formatTime(m.created_at)}</span>
+                        {isOutgoing && (
+                          <svg className="w-3.5 h-3.5 text-[#53bdeb]" viewBox="0 0 16 15" fill="currentColor">
+                            <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.88a.32.32 0 0 1-.484.033l-.358-.325a.32.32 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266a.32.32 0 0 0 .484-.034l6.272-8.048a.366.366 0 0 0-.063-.51z" />
+                            <path d="M0.5 3.316l-.478-.372a.365.365 0 0 0-.51.063L4.156 9.88a.32.32 0 0 1-.484.033L1.01 6.7a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185a.32.32 0 0 0 .484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z" />
+                          </svg>
+                        )}
                       </div>
-                      <span className="text-[10px] text-gray-300 px-1">{formatTime(m.created_at)}</span>
                     </div>
                   </div>
-                );
-              })
-            )}
-            <div ref={bottomRef} />
-          </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={bottomRef} />
+        </div>
 
-          <div className="p-3 bg-white border-t border-gray-100 flex gap-2">
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={sending || !inputText.trim() || !selectedDriverId}
-              className="shrink-0 w-10 h-10 rounded-xl bg-[#4a4644] text-white flex items-center justify-center hover:bg-black transition-colors disabled:opacity-40"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              placeholder="اكتب ردك للسائق..."
-              disabled={sending || !selectedDriverId}
-              className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm text-right outline-none focus:border-[#c9a84c] disabled:opacity-50"
-            />
-          </div>
+        {/* شريط الإدخال — واتساب */}
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-[#f0f2f5] border-t border-gray-200">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+            placeholder="اكتب رسالة..."
+            disabled={sending || !selectedDriverId}
+            className="flex-1 rounded-full border-0 bg-white px-4 py-2.5 text-sm text-right outline-none focus:ring-1 focus:ring-[#075e54]/30 disabled:opacity-50 shadow-sm"
+          />
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={sending || !inputText.trim() || !selectedDriverId}
+            className="shrink-0 w-11 h-11 rounded-full bg-[#075e54] text-white flex items-center justify-center hover:bg-[#128c7e] transition-colors disabled:opacity-40 shadow-sm"
+          >
+            <Send className="w-5 h-5 -scale-x-100" />
+          </button>
         </div>
       </div>
     </AppModal>

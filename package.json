@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed": "node scripts/seedFirestore.js",
-    "bootstrap:admin": "npm run bootstrap --prefix server -- --all"
+    "bootstrap:admin": "npm run bootstrap --prefix server -- --all",
+    "deploy:rules": "npx firebase-tools deploy --only firestore:rules --project drivo-project-6f3fd"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",

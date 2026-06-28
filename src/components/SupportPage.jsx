@@ -1,4 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { filterByGlobalSearch } from "../lib/searchUtils";
+import { usePermissions } from "../hooks/usePermissions.js";
+import { PERMISSIONS } from "../lib/permissions.js";
 import AppModal, { ModalField, ModalActions, modalInputClass, ConfirmModal } from "./ui/AppModal";
 
 const BASE = "https://drivo1.elmoroj.com/api";
@@ -294,6 +298,29 @@ export default function SupportPage() {
   const [ticketModal, setTicketModal]     = useState({ open:false, ticket:null });
   const [deleteModal, setDeleteModal]     = useState({ open:false, ticketId:null });
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const { searchQuery, setSearchQuery } = useGlobalSearch();
+  const { can } = usePermissions();
+  const canReply = can(PERMISSIONS.SUPPORT_TICKETS_REPLY);
+  const canDelete = can(PERMISSIONS.SUPPORT_TICKETS_DELETE);
+  const canEscalate = can(PERMISSIONS.SUPPORT_TICKETS_ESCALATE);
+
+  const filteredTickets = useMemo(
+    () => filterByGlobalSearch(tickets, searchQuery, (t) => [
+      t.id,
+      t.description,
+      t.issue_type,
+      t.driver?.name,
+      t.driver?.last_name,
+      statusInfo(t.status).label,
+      priorityInfo(t.priority).label,
+    ]),
+    [tickets, searchQuery]
+  );
+
+  const filteredChats = useMemo(
+    () => filterByGlobalSearch(driversChats, searchQuery, (c) => [c.name, c.message]),
+    [searchQuery]
+  );
 
   const fetchTickets = () => {
     setLoading(true);
@@ -338,10 +365,12 @@ export default function SupportPage() {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
             تصفية
           </button>
+          {canEscalate && (
           <button onClick={()=>setTicketModal({open:true,ticket:null})} className="bg-[#4a4644] text-white text-xs px-4 py-2 rounded-lg hover:bg-black flex items-center gap-1.5 font-medium shadow-sm">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             إنشاء تذكرة
           </button>
+          )}
         </div>
       </div>
 
@@ -354,9 +383,9 @@ export default function SupportPage() {
       {/* ── Tickets Tab ── */}
       {activeTab === "tickets" && (
         <div className="space-y-4">
-          {loading ? <Spinner/> : tickets.length === 0 ? (
-            <p className="text-center text-gray-400 text-sm py-10">لا توجد تذاكر</p>
-          ) : tickets.map(t => {
+          {loading ? <Spinner/> : filteredTickets.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10">{tickets.length === 0 ? "لا توجد تذاكر" : "لا توجد نتائج للبحث"}</p>
+          ) : filteredTickets.map(t => {
             const st = statusInfo(t.status);
             const pr = priorityInfo(t.priority);
             return (
@@ -390,18 +419,24 @@ export default function SupportPage() {
                 <div className="border-t border-gray-100 mx-5"/>
                 {/* actions — left */}
                 <div className="px-5 py-2.5 flex items-center justify-start gap-5 text-xs text-gray-500">
+                  {canReply && (
                   <button onClick={()=>setTicketModal({open:true,ticket:t})} className="flex items-center gap-1 hover:text-amber-600 transition-colors">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     تعديل
                   </button>
+                  )}
+                  {canDelete && (
                   <button onClick={()=>setDeleteModal({open:true,ticketId:t.id})} className="flex items-center gap-1 hover:text-red-600 transition-colors">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     حذف
                   </button>
+                  )}
+                  {canReply && (
                   <button onClick={()=>setNoteModal({open:true,ticketId:t.id})} className="flex items-center gap-1 hover:text-[#b58f37] transition-colors">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     إضافة ملاحظة
                   </button>
+                  )}
                 </div>
               </div>
             );
@@ -416,12 +451,18 @@ export default function SupportPage() {
           <section className="w-80 flex flex-col bg-white border-l border-gray-100">
             <div className="p-4 border-b border-gray-100">
               <div className="relative">
-                <input type="text" placeholder="ابحث هنا......" className="w-full bg-white border border-gray-200 rounded-xl py-2 pr-9 pl-4 text-xs text-right focus:outline-none focus:border-gray-300"/>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ابحث هنا......"
+                  className="w-full bg-white border border-gray-200 rounded-xl py-2 pr-9 pl-4 text-xs text-right focus:outline-none focus:border-gray-300"
+                />
                 <span className="absolute right-3 top-2.5 text-gray-400 text-xs">🔍</span>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-              {driversChats.map(chat => {
+              {filteredChats.map(chat => {
                 const isSel = selectedChat === chat.id;
                 return (
                   <div key={chat.id} onClick={()=>setSelectedChat(chat.id)} className={`flex items-center justify-between p-4 cursor-pointer transition-all ${isSel ? "bg-[#fcfaf7] border-r-4 border-[#b58f37]" : "hover:bg-gray-50"}`}>

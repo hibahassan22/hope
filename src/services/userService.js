@@ -12,6 +12,9 @@ import {
 import { db } from "../firebase/firestore.js";
 import { getIdToken } from "./authService.js";
 import { getApiErrorMessage } from "../lib/authErrors.js";
+import { fetchRoles } from "./roleService.js";
+
+export { fetchRoles };
 
 const ADMIN_BASE = "/api/admin";
 
@@ -105,11 +108,6 @@ export async function updateUserStatus(uid, status) {
 
 export async function resetUserPassword(uid) {
   return adminFetch(`/users/${uid}/reset-password`, { method: "POST" });
-}
-
-export async function fetchRoles() {
-  const snap = await getDocs(collection(db, "roles"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export async function fetchDepartments() {

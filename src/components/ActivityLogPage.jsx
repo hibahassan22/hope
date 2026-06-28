@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuthContext } from "../lib/AuthContext";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { fetchSalesList } from "../services/salesService.js";
 
 const BASE = "https://drivo1.elmoroj.com/api";
 
 async function fetchAllSales() {
-  const res = await fetch(`${BASE}/sales`, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : (data?.data ?? []);
+  return fetchSalesList();
 }
 
 async function fetchAllDrivers() {
@@ -99,8 +98,9 @@ export default function ActivityLogPage() {
   const [driversList, setDriversList] = useState([]);
   const [selectedDriverId, setSelectedDriverId] = useState("");
 
+  const { searchQuery, setSearchQuery } = useGlobalSearch();
+
   // Filters
-  const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("الكل");
 
   const fetchLogs = useCallback(async () => {
@@ -160,7 +160,6 @@ export default function ActivityLogPage() {
 
   // Reset filters on tab change
   useEffect(() => {
-    setSearch("");
     setActionFilter("الكل");
     setSelectedSalesId("");
     setSelectedDriverId("");
@@ -179,15 +178,15 @@ export default function ActivityLogPage() {
   );
 
   const filtered = logs.filter((log) => {
-    const q = search.trim();
+    const q = searchQuery.trim().toLowerCase();
     const matchSearch =
       q === "" ||
-      String(log.id ?? "").includes(q) ||
-      String(log.trip_id ?? "").includes(q) ||
-      (log.title ?? "").includes(q) ||
-      (log.description ?? "").includes(q) ||
-      (log.driver?.name ?? "").includes(q) ||
-      (log.sales_user?.name ?? "").includes(q);
+      String(log.id ?? "").toLowerCase().includes(q) ||
+      String(log.trip_id ?? "").toLowerCase().includes(q) ||
+      (log.title ?? "").toLowerCase().includes(q) ||
+      (log.description ?? "").toLowerCase().includes(q) ||
+      (log.driver?.name ?? "").toLowerCase().includes(q) ||
+      (log.sales_user?.name ?? "").toLowerCase().includes(q);
     const matchAction = actionFilter === "الكل" || log.action_type === actionFilter;
     return matchSearch && matchAction;
   });
@@ -290,8 +289,8 @@ export default function ActivityLogPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="بحث برقم الرحلة أو الوصف..."
                 className="bg-transparent text-sm outline-none w-full placeholder-gray-300 text-right"
                 dir="rtl"
